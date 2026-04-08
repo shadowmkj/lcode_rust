@@ -1,6 +1,6 @@
 use crate::auth::LeetCodeCredentials;
 use crate::error::{EngineError, Result};
-use crate::models::{GraphQLQuery, Question};
+use crate::models::{GraphQLQuery, Question, SubmissionCheckResult, SubmitPayload, SubmitResponse};
 use reqwest::Client;
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::json;
@@ -154,5 +154,73 @@ impl LeetCodeClient {
 
         // Chain directly into the slug fetcher, returning Result<Question>
         self.get_question_by_slug(&slug).await
+    }
+
+    /// Submit raw code to a problem
+    pub async fn submit_code(
+        &self,
+        title_slug: &str,
+        question_id: &str,
+        lang: &str,
+        code: &str,
+    ) -> Result<u64> {
+        let url = format!("https://leetcode.com/problems/{}/submit/", title_slug);
+
+        let payload = SubmitPayload {
+            lang: lang.to_string(),
+            question_id: question_id.to_string(),
+            typed_code: code.to_string(),
+        };
+
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&payload)
+            // Critical: LeetCode requires the Referer header to match the problem page to bypass CSRF checks
+            .header(
+                "Referer",
+                format!("https://leetcode.com/problems/{}/", title_slug),
+            )
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(EngineError::GraphQL(format!(
+                "Submission failed: {}",
+                response.status()
+            )));
+        }
+
+        let result: SubmitResponse = response.json().await?;
+        Ok(result.submission_id)
+    }
+
+    /// Poll the submission status until it completes
+    pub async fn check_submission(&self, submission_id: u64) -> Result<SubmissionCheckResult> {
+        let url = format!(
+            "https://leetcode.com/submissions/detail/{}/check/",
+            submission_id
+        );
+
+        loop {
+            let response = self.http_client.get(&url).send().await?;
+
+            if !response.status().is_success() {
+                return Err(EngineError::GraphQL(format!(
+                    "Check failed: {}",
+                    response.status()
+                )));
+            }
+
+            let result: SubmissionCheckResult = response.json().await?;
+
+            // LeetCode's state moves from "PENDING" or "STARTED" to "SUCCESS" when execution finishes
+            if result.state == "SUCCESS" {
+                return Ok(result);
+            }
+
+            // Sleep for 1.5 seconds before polling again to avoid hitting rate limits
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        }
     }
 }

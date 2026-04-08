@@ -22,6 +22,11 @@ enum Commands {
     Status,
     /// Pick a problem
     Pick { identifier: String },
+    /// Submit a problem to leetcode
+    Submit {
+        /// The path to your solution file (e.g., 'two_sum.rs')
+        file: String,
+    },
 }
 
 #[tokio::main]
@@ -177,6 +182,110 @@ async fn main() {
                             e
                         );
                     }
+                }
+            }
+        }
+        Commands::Submit { file } => {
+            let creds = match LeetCodeCredentials::load() {
+                Some(c) => c,
+                None => {
+                    eprintln!("❌ Not authenticated. Please run `lcode auth` first.");
+                    return;
+                }
+            };
+
+            let client = match LeetCodeClient::new(creds) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("❌ Failed to initialize client: {}", e);
+                    return;
+                }
+            };
+
+            // 1. Read the file content
+            let code = match std::fs::read_to_string(&file) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("❌ Failed to read file '{}': {}", file, e);
+                    return;
+                }
+            };
+
+            // 2. Extract the slug from the filename (e.g., "two_sum.rs" -> "two-sum")
+            let path = std::path::Path::new(&file);
+            let file_stem = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default();
+            let slug = file_stem.replace("_", "-");
+
+            println!("🔍 Resolving ID for '{}'...", slug);
+
+            // 3. Fetch the question to get its internal ID
+            let question = match client.get_question_by_slug(&slug).await {
+                Ok(q) => q,
+                Err(e) => {
+                    eprintln!(
+                        "❌ Failed to fetch question ID. Does the filename match the problem slug? Error: {}",
+                        e
+                    );
+                    return;
+                }
+            };
+
+            // 4. Submit the code
+            println!("🚀 Submitting {}...", file);
+            let submission_id = match client
+                .submit_code(&slug, &question.question_id, "rust", &code)
+                .await
+            {
+                Ok(id) => id,
+                Err(e) => {
+                    eprintln!("❌ Submission failed: {}", e);
+                    return;
+                }
+            };
+
+            // 5. Poll for results
+            println!("⏳ Code queued. Waiting for execution results...");
+            let result = match client.check_submission(submission_id).await {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("❌ Failed to check submission status: {}", e);
+                    return;
+                }
+            };
+
+            // 6. Display the formatted results
+            println!("\n==================================================");
+
+            let status = result.status_msg.unwrap_or_else(|| "Unknown".to_string());
+
+            if status == "Accepted" {
+                // Print Accepted in Green
+                println!("  ✅ \x1b[32m{}\x1b[0m", status);
+            } else {
+                // Print Errors/Wrong Answers in Red
+                println!("  ❌ \x1b[31m{}\x1b[0m", status);
+            }
+
+            println!("==================================================\n");
+
+            if let (Some(correct), Some(total)) = (result.total_correct, result.total_testcases) {
+                println!("🧪 Testcases: {} / {} passed", correct, total);
+            }
+
+            if status == "Accepted" {
+                if let Some(runtime) = result.status_runtime {
+                    println!("⏱️  Runtime: {}", runtime);
+                }
+                if let Some(memory) = result.status_memory {
+                    println!("💾 Memory: {}", memory);
+                }
+            } else if status == "Compile Error" {
+                if let Some(err_msg) = result.compile_error {
+                    println!("💥 Compiler Output:\n{}", err_msg);
                 }
             }
         }
