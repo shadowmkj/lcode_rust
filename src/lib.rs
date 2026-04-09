@@ -7,3 +7,5 @@ pub mod models;
 pub mod client;
 
 pub mod picker;
+
+pub mod tui;

@@ -51,6 +51,14 @@ pub struct Question {
     pub code_snippets: Vec<QuestionSnippet>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ProblemSummary {
+    pub id: u64,
+    pub title: String,
+    pub slug: String,
+    pub difficulty: u8, // 1 = Easy, 2 = Medium, 3 = Hard
+}
+
 // ==========================================
 // Submission Models
 // ==========================================
