@@ -1,6 +1,6 @@
 [package]
 name = "leetrs"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2024"
 description = "A command-line tool to interact with LeetCode."
 license = "MIT"
@@ -14,6 +14,7 @@ clap_complete = "4.6.0"
 crossterm = "0.29.0"
 dialoguer = "0.12.0"
 directories = "6.0.0"
+fuzzy-matcher = "0.3.7"
 html2md = "0.2.15"
 ratatui = "0.30.0"
 reqwest = { version = "0.13.2", features = ["json", "cookies"] }
@@ -22,6 +23,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 tokio = { version = "1.51.1", features = ["full"] }
+tui-input = "0.15.1"
 
 # The profile that 'dist' will build with
 [profile.dist]
