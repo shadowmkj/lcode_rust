@@ -11,7 +11,7 @@ pub struct LeetCodeCredentials {
 
 impl LeetCodeCredentials {
     fn get_config_path() -> Option<PathBuf> {
-        let dirs = ProjectDirs::from("com", "shadow", "lcode")?;
+        let dirs = ProjectDirs::from("com", "shadow", "leetrs")?;
         Some(dirs.config_dir().join("credentials.json"))
     }
 

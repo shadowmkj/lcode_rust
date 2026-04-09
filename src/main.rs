@@ -5,10 +5,10 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use dialoguer::{Password, Select, theme::ColorfulTheme};
-use lcode::{auth::LeetCodeCredentials, client::LeetCodeClient, models::Language, picker::Picker};
+use leetrs::{auth::LeetCodeCredentials, client::LeetCodeClient, models::Language, picker::Picker};
 
 #[derive(Parser, Debug)]
-#[command(name = "lcode")]
+#[command(name = "leetrs")]
 #[command(about = "A Neovim-integrated LeetCode TUI", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -35,7 +35,7 @@ enum Commands {
         /// The path to your solution file (e.g., 'two_sum.rs')
         file: String,
     },
-    /// Check lcode version
+    /// Check leetrs version
     Version,
 }
 
@@ -98,7 +98,7 @@ async fn main() {
                 }
                 None => {
                     eprintln!("❌ Not authenticated. No valid credentials found.");
-                    eprintln!("Run `lcode auth` to set up your account.");
+                    eprintln!("Run `leetrs auth` to set up your account.");
                 }
             }
         }
@@ -110,7 +110,7 @@ async fn main() {
             let creds = match LeetCodeCredentials::load() {
                 Some(c) => c,
                 None => {
-                    eprintln!("❌ Not authenticated. Please run `lcode auth` first.");
+                    eprintln!("❌ Not authenticated. Please run `leetrs auth` first.");
                     return;
                 }
             };
@@ -158,7 +158,7 @@ async fn main() {
             let creds = match LeetCodeCredentials::load() {
                 Some(c) => c,
                 None => {
-                    eprintln!("❌ Not authenticated. Please run `lcode auth` first.");
+                    eprintln!("❌ Not authenticated. Please run `leetrs auth` first.");
                     return;
                 }
             };
@@ -264,7 +264,7 @@ async fn main() {
             }
         }
         Commands::Version => {
-            println!("lcode 1.0");
+            println!("leetrs 1.0");
         }
     }
 }
