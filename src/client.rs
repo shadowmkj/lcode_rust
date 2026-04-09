@@ -1,15 +1,14 @@
+use std::fs;
+
 use crate::auth::LeetCodeCredentials;
 use crate::error::{EngineError, Result};
-use crate::models::{
-    GraphQLQuery, Language, Question, SubmissionCheckResult, SubmitPayload, SubmitResponse,
-};
+use crate::models::{GraphQLQuery, Question, SubmissionCheckResult, SubmitPayload, SubmitResponse};
 use reqwest::Client;
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::json;
 
 pub struct LeetCodeClient {
     http_client: Client,
-    csrf_token: String,
 }
 
 impl LeetCodeClient {
@@ -42,7 +41,6 @@ impl LeetCodeClient {
 
         Ok(Self {
             http_client: client,
-            csrf_token: creds.csrf_token,
         })
     }
 
@@ -77,11 +75,7 @@ impl LeetCodeClient {
     }
 
     /// Fetch a specific problem's details and boilerplate using its URL slug
-    pub async fn get_question_by_slug(
-        &self,
-        title_slug: &str,
-        language: &Language,
-    ) -> Result<Question> {
+    pub async fn get_question_by_slug(&self, title_slug: &str) -> Result<Question> {
         // 1. Define the exact GraphQL query LeetCode expects
         let query_string = r#"
             query questionData($titleSlug: String!) {
@@ -119,7 +113,7 @@ impl LeetCodeClient {
         Ok(response.question)
     }
     /// Fetch a specific problem's details and boilerplate using its numerical ID
-    pub async fn get_question_by_id(&self, id: u64, lang: &Language) -> Result<Question> {
+    pub async fn get_question_by_id(&self, id: u64) -> Result<Question> {
         let url = "https://leetcode.com/api/problems/all/";
 
         let response = self.http_client.get(url).send().await?;
@@ -159,7 +153,7 @@ impl LeetCodeClient {
             .ok_or_else(|| EngineError::GraphQL(format!("Problem with ID {} not found", id)))?;
 
         // Chain directly into the slug fetcher, returning Result<Question>
-        self.get_question_by_slug(&slug, lang).await
+        self.get_question_by_slug(&slug).await
     }
 
     /// Submit raw code to a problem
@@ -244,6 +238,7 @@ impl LeetCodeClient {
         }
 
         let json_data: serde_json::Value = response.json().await?;
+        let _ = fs::write("data.json", json_data.to_string());
         let mut problems = Vec::new();
 
         if let Some(pairs) = json_data
@@ -270,12 +265,22 @@ impl LeetCodeClient {
                         .get("level")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0) as u8;
+                    let accepted =
+                        stat.get("total_acs").and_then(|v| v.as_u64()).unwrap_or(0) as u64;
+                    let submitted = stat
+                        .get("total_submitted")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as u64;
+                    let acceptance = accepted as f64 / submitted as f64;
 
                     problems.push(crate::models::ProblemSummary {
                         id,
                         title,
                         slug,
                         difficulty: level,
+                        accepted,
+                        submitted,
+                        acceptance,
                     });
                 }
             }

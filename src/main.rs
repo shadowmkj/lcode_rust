@@ -53,7 +53,7 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Auth => {
@@ -110,7 +110,7 @@ async fn main() {
                 Ok(slug) => slug,
                 Err(e) => {
                     eprintln!("Fatal error in TUI: {e}");
-                    return;
+                    return Err(e.into());
                 }
             };
 
@@ -146,14 +146,14 @@ async fn main() {
                 Some(c) => c,
                 None => {
                     eprintln!("❌ Not authenticated. Please run `leetrs auth` first.");
-                    return;
+                    return Ok(());
                 }
             };
             let client = match LeetCodeClient::new(creds) {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("❌ Failed to initialize client: {}", e);
-                    return;
+                    return Err(e.into());
                 }
             };
             let picker = Picker::new(client);
@@ -164,7 +164,7 @@ async fn main() {
                 Some(c) => c,
                 None => {
                     eprintln!("❌ Not authenticated. Please run `leetrs auth` first.");
-                    return;
+                    return Ok(());
                 }
             };
 
@@ -172,7 +172,7 @@ async fn main() {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("❌ Failed to initialize client: {}", e);
-                    return;
+                    return Err(e.into());
                 }
             };
 
@@ -194,7 +194,9 @@ async fn main() {
                 _ => todo!(),
             }
         }
-    }
+    };
+
+    Ok(())
 }
 
 async fn pick_and_open(

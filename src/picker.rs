@@ -20,21 +20,18 @@ impl Picker {
         let language = match language {
             Some(lang) => lang,
             None => {
-                println!("🔤 No language specified, defaulting to Rust.");
-                &Language::Rust
+                println!("🔤 No language specified, defaulting to Python.");
+                &Language::Python
             }
         };
 
         let question = if identifier.chars().all(char::is_numeric) {
             let id: u64 = identifier.parse().unwrap();
             println!("🔍 Fetching problem ID: {}...", id);
-            self.client.get_question_by_id(id, &language).await.unwrap()
+            self.client.get_question_by_id(id).await.unwrap()
         } else {
             println!("🔍 Fetching problem: {}...", identifier);
-            self.client
-                .get_question_by_slug(&identifier, &language)
-                .await
-                .unwrap()
+            self.client.get_question_by_slug(&identifier).await.unwrap()
         };
 
         // Convert LeetCode's raw HTML into wrapped terminal text (80 columns wide)
@@ -117,7 +114,7 @@ impl Picker {
                 .unwrap_or_default(),
         );
         // 3. Fetch the question to get its internal ID
-        let question = match self.client.get_question_by_slug(&slug, &language).await {
+        let question = match self.client.get_question_by_slug(&slug).await {
             Ok(q) => q,
             Err(e) => {
                 eprintln!(
