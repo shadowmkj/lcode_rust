@@ -1,5 +1,3 @@
-use std::fs;
-
 use crate::auth::LeetCodeCredentials;
 use crate::error::{EngineError, Result};
 use crate::models::{GraphQLQuery, Question, SubmissionCheckResult, SubmitPayload, SubmitResponse};

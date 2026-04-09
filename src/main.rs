@@ -1,11 +1,10 @@
 use std::{
     fs::{self},
     io,
-    process::{self, Command},
-    thread,
+    process::Command,
 };
 
-use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{
     Shell,
     aot::{Bash, Fish, Zsh},
@@ -19,14 +18,14 @@ use leetrs::{
     picker::Picker,
 };
 
-const VERSION: &'static str = "1.0.5";
+const VERSION: &'static str = "1.0.6";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
 #[command(about = "A Neovim-integrated LeetCode TUI", long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -65,10 +64,10 @@ fn parse_identifier(s: &str) -> Result<Identifier, String> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Auth => {
+        Some(Commands::Auth) => {
             println!("🔒 LeetCode Authentication\n");
 
             let options = &[
@@ -106,44 +105,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Tui => {
-            let creds =
-                leetrs::auth::LeetCodeCredentials::load().expect("Please run `leetrs auth` first.");
-            let client = leetrs::client::LeetCodeClient::new(creds).expect("Failed to init client");
-
-            let picker = Picker::new(client);
-
-            let problems = match picker.list_problems().await {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("❌ Failed to fetch problems: {}", e);
-                    return Err(e.into());
-                }
-            };
-            loop {
-                //OPTIM: Make sure to optimize this without cloning
-                let selected_slug = match leetrs::tui::run_tui(problems.clone()).await {
-                    Ok(slug) => slug,
-                    Err(e) => {
-                        eprintln!("Fatal error in TUI: {e}");
-                        return Err(e.into());
-                    }
-                };
-
-                if let Some(slug) = selected_slug {
-                    pick_and_open(
-                        picker.clone(),
-                        &Identifier::String(slug),
-                        &Some(Language::Python),
-                        false,
-                    )
-                    .await;
-                } else {
-                    break;
-                }
-            }
-        }
-        Commands::Status => {
+        Some(Commands::Tui) => open_tui().await,
+        Some(Commands::Status) => {
             match LeetCodeCredentials::load() {
                 Some(creds) => {
                     println!("✅ Currently authenticated!");
@@ -161,11 +124,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Pick {
+        Some(Commands::Pick {
             identifier,
             language,
             preview,
-        } => {
+        }) => {
             let creds = match LeetCodeCredentials::load() {
                 Some(c) => c,
                 None => {
@@ -183,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let picker = Picker::new(client);
             pick_and_open(picker, identifier, language, *preview).await;
         }
-        Commands::Submit { file } => {
+        Some(Commands::Submit { file }) => {
             let creds = match LeetCodeCredentials::load() {
                 Some(c) => c,
                 None => {
@@ -203,10 +166,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let picker = Picker::new(client);
             picker.submit(file).await;
         }
-        Commands::Version => {
+        Some(Commands::Version) => {
             println!("leetrs {} (beta)", VERSION);
         }
-        Commands::Completion { shell } => {
+        Some(Commands::Completion { shell }) => {
             let mut cmd = Cli::command();
 
             match shell {
@@ -218,6 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 _ => todo!(),
             }
         }
+        None => open_tui().await,
     };
 
     Ok(())
@@ -258,6 +222,43 @@ async fn pick_and_open(
             if let Ok(content) = content {
                 print!("{}", content);
             }
+        }
+    }
+}
+
+async fn open_tui() {
+    let creds = leetrs::auth::LeetCodeCredentials::load().expect("Please run `leetrs auth` first.");
+    let client = leetrs::client::LeetCodeClient::new(creds).expect("Failed to init client");
+
+    let picker = Picker::new(client);
+
+    let problems = match picker.list_problems().await {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("❌ Failed to fetch problems: {}", e);
+            return;
+        }
+    };
+    loop {
+        //OPTIM: Make sure to optimize this without cloning
+        let selected_slug = match leetrs::tui::run_tui(problems.clone()).await {
+            Ok(slug) => slug,
+            Err(e) => {
+                eprintln!("Fatal error in TUI: {e}");
+                return;
+            }
+        };
+
+        if let Some(slug) = selected_slug {
+            pick_and_open(
+                picker.clone(),
+                &Identifier::String(slug),
+                &Some(Language::Python),
+                false,
+            )
+            .await;
+        } else {
+            break;
         }
     }
 }

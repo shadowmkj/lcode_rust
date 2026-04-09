@@ -17,11 +17,6 @@ impl LeetCodeCredentials {
         Some(dirs.config_dir().join("credentials.json"))
     }
 
-    fn get_data_path() -> Option<PathBuf> {
-        let dirs = ProjectDirs::from("com", "shadowmkj", "leetrs")?;
-        Some(dirs.config_dir().join("data.json"))
-    }
-
     pub fn load() -> Option<Self> {
         let config_path = Self::get_config_path()?;
         let file_contents = std::fs::read_to_string(config_path).ok()?;
