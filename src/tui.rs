@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -219,6 +219,16 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
                                             app.should_quit = true;
                                         }
                                     }
+                                }
+                                KeyCode::Char('j')
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                                {
+                                    app.next();
+                                }
+                                KeyCode::Char('k')
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                                {
+                                    app.previous();
                                 }
                                 _ => {
                                     app.input.handle_event(&Event::Key(key));

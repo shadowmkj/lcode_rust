@@ -1,9 +1,10 @@
+use crate::error::{EngineError, Result};
+use crate::models::{Identifier, ProblemSummary};
+use crate::{client::LeetCodeClient, models::Language};
+use std::path::Path;
 use std::{fs, process};
 
-use crate::error::{EngineError, Result};
-use crate::models::ProblemSummary;
-use crate::{client::LeetCodeClient, models::Language};
-
+#[derive(Clone)]
 pub struct Picker {
     pub client: LeetCodeClient,
 }
@@ -27,7 +28,7 @@ impl Picker {
 
     pub async fn pick(
         &self,
-        identifier: &String,
+        identifier: &Identifier,
         language: &Option<Language>,
     ) -> Result<(String, String)> {
         let language = match language {
@@ -38,13 +39,27 @@ impl Picker {
             }
         };
 
-        let question = if identifier.chars().all(char::is_numeric) {
-            let id: u64 = identifier.parse().unwrap();
-            println!("🔍 Fetching problem ID: {}...", id);
-            self.client.get_question_by_id(id).await.unwrap()
-        } else {
-            println!("🔍 Fetching problem: {}...", identifier);
-            self.client.get_question_by_slug(&identifier).await.unwrap()
+        if let Identifier::String(ident) = identifier {
+            let snake_slug = ident.replace("-", "_");
+            let code_filename = match language {
+                Language::Python => format!("{}.py", snake_slug),
+                Language::Rust => format!("{}.rs", snake_slug),
+            };
+            let desc_filename = format!("{}.md", snake_slug);
+            if Path::new(&code_filename).exists() && Path::new(&desc_filename).exists() {
+                return Ok((code_filename, desc_filename));
+            }
+        }
+
+        let question = match identifier {
+            Identifier::Number(num) => {
+                println!("🔍 Fetching problem ID: {}...", num);
+                self.client.get_question_by_id(*num).await.unwrap()
+            }
+            Identifier::String(identifier) => {
+                println!("🔍 Fetching problem: {}...", identifier);
+                self.client.get_question_by_slug(&identifier).await.unwrap()
+            }
         };
 
         // Convert LeetCode's raw HTML into wrapped terminal text (80 columns wide)

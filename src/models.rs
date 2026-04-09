@@ -15,6 +15,12 @@ pub enum Language {
     Rust,
 }
 
+#[derive(Debug, Clone)]
+pub enum Identifier {
+    Number(u64),
+    String(String),
+}
+
 impl Language {
     pub fn to_lang_slug(&self) -> &'static str {
         match self {

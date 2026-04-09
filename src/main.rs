@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{
     Shell,
     aot::{Bash, Fish, Zsh},
@@ -15,9 +15,11 @@ use dialoguer::{Select, theme::ColorfulTheme};
 use leetrs::{
     auth::{LeetCodeCredentials, auto_extract_flow, manual_auth_flow},
     client::LeetCodeClient,
-    models::Language,
+    models::{Identifier, Language},
     picker::Picker,
 };
+
+const VERSION: &'static str = "1.0.5";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
@@ -37,7 +39,8 @@ enum Commands {
     Status,
     /// Pick a problem
     Pick {
-        identifier: String,
+        #[arg(value_parser = parse_identifier)]
+        identifier: Identifier,
         language: Option<Language>,
         #[arg(short, long)]
         preview: bool,
@@ -51,6 +54,14 @@ enum Commands {
     Completion { shell: Shell },
     /// Check leetrs version
     Version,
+}
+
+fn parse_identifier(s: &str) -> Result<Identifier, String> {
+    if let Ok(num) = s.parse::<u64>() {
+        Ok(Identifier::Number(num))
+    } else {
+        Ok(Identifier::String(s.to_string()))
+    }
 }
 
 #[tokio::main]
@@ -109,17 +120,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return Err(e.into());
                 }
             };
+            loop {
+                //OPTIM: Make sure to optimize this without cloning
+                let selected_slug = match leetrs::tui::run_tui(problems.clone()).await {
+                    Ok(slug) => slug,
+                    Err(e) => {
+                        eprintln!("Fatal error in TUI: {e}");
+                        return Err(e.into());
+                    }
+                };
 
-            let selected_slug = match leetrs::tui::run_tui(problems).await {
-                Ok(slug) => slug,
-                Err(e) => {
-                    eprintln!("Fatal error in TUI: {e}");
-                    return Err(e.into());
+                if let Some(slug) = selected_slug {
+                    pick_and_open(
+                        picker.clone(),
+                        &Identifier::String(slug),
+                        &Some(Language::Python),
+                        false,
+                    )
+                    .await;
+                } else {
+                    break;
                 }
-            };
-
-            if let Some(slug) = selected_slug {
-                pick_and_open(picker, &slug, &Some(Language::Python), false).await;
             }
         }
         Commands::Status => {
@@ -183,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             picker.submit(file).await;
         }
         Commands::Version => {
-            println!("leetrs 1.0.3 (beta)");
+            println!("leetrs {} (beta)", VERSION);
         }
         Commands::Completion { shell } => {
             let mut cmd = Cli::command();
@@ -204,7 +225,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn pick_and_open(
     picker: Picker,
-    identifier: &String,
+    identifier: &Identifier,
     language: &Option<Language>,
     preview: bool,
 ) {
