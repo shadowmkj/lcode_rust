@@ -7,6 +7,7 @@ use reqwest::Client;
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::json;
 
+#[derive(Clone, Debug)]
 pub struct LeetCodeClient {
     http_client: Client,
 }
@@ -238,7 +239,6 @@ impl LeetCodeClient {
         }
 
         let json_data: serde_json::Value = response.json().await?;
-        let _ = fs::write("data.json", json_data.to_string());
         let mut problems = Vec::new();
 
         if let Some(pairs) = json_data
@@ -288,7 +288,6 @@ impl LeetCodeClient {
 
         // The API returns them sorted by ID descending by default, let's sort ascending
         problems.sort_by_key(|p| p.id);
-
         Ok(problems)
     }
 }

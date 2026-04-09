@@ -1,6 +1,7 @@
-use std::fs;
+use std::{fs, process};
 
 use crate::error::{EngineError, Result};
+use crate::models::ProblemSummary;
 use crate::{client::LeetCodeClient, models::Language};
 
 pub struct Picker {
@@ -10,6 +11,18 @@ pub struct Picker {
 impl Picker {
     pub fn new(client: LeetCodeClient) -> Self {
         Picker { client }
+    }
+
+    pub fn get_data_path() -> String {
+        let project_dirs = directories::ProjectDirs::from("com", "shadowmkj", "leetrs").unwrap();
+        let data_dir = project_dirs.data_dir();
+        if !data_dir.exists() {
+            if let Err(e) = fs::create_dir_all(data_dir) {
+                eprintln!("❌ Failed to create data directory: {}", e);
+                process::exit(1);
+            }
+        }
+        return data_dir.join("data.json").to_str().unwrap().to_string();
     }
 
     pub async fn pick(
@@ -37,7 +50,8 @@ impl Picker {
         // Convert LeetCode's raw HTML into wrapped terminal text (80 columns wide)
         let formatted_content = html2md::parse_html(&question.content);
         let md_content = format!("# {}\n\n{}", question.title, formatted_content);
-        // 2. determine filenames (converting kebab-case to snake_case)
+
+        //  determine filenames (converting kebab-case to snake_case)
         let snake_slug = question.title_slug.replace("-", "_");
         let code_filename = match language {
             Language::Rust => format!("{}.rs", snake_slug),
@@ -45,7 +59,7 @@ impl Picker {
         };
         let desc_filename = format!("{}.md", snake_slug);
 
-        // 3. write both files to disk
+        // write both files to disk
         let snippet = question
             .code_snippets
             .into_iter()
@@ -90,7 +104,6 @@ impl Picker {
     }
 
     pub async fn submit(&self, file: &String) {
-        // 1. Read the file content
         let code = match std::fs::read_to_string(&file) {
             Ok(c) => c,
             Err(e) => {
@@ -99,7 +112,7 @@ impl Picker {
             }
         };
 
-        // 2. Extract the slug from the filename (e.g., "two_sum.rs" -> "two-sum")
+        // Extract the slug from the filename (e.g., "two_sum.rs" -> "two-sum")
         let path = std::path::Path::new(&file);
         let file_stem = path
             .file_stem()
@@ -113,7 +126,7 @@ impl Picker {
                 .and_then(|s| s.to_str())
                 .unwrap_or_default(),
         );
-        // 3. Fetch the question to get its internal ID
+
         let question = match self.client.get_question_by_slug(&slug).await {
             Ok(q) => q,
             Err(e) => {
@@ -125,7 +138,6 @@ impl Picker {
             }
         };
 
-        // 4. Submit the code
         println!("🚀 Submitting {}...", file);
         let submission_id = match self
             .client
@@ -139,7 +151,6 @@ impl Picker {
             }
         };
 
-        // 5. Poll for results
         println!("⏳ Code queued. Waiting for execution results...");
         let result = match self.client.check_submission(submission_id).await {
             Ok(r) => r,
@@ -149,18 +160,13 @@ impl Picker {
             }
         };
 
-        // 6. Display the formatted results
         println!("\n==================================================");
 
         let status = result.status_msg.unwrap_or_else(|| "Unknown".to_string());
 
         if status == "Accepted" {
-            // Print Accepted in Green
-            // println!("  ✅ \x1b[32m{}\x1b[0m", status);
             println!("  ✅ {}", status);
         } else {
-            // Print Errors/Wrong Answers in Red
-            // println!("  ❌ \x1b[31m{}\x1b[0m", status);
             println!("  ❌ {}", status);
         }
 
@@ -202,5 +208,47 @@ impl Picker {
                 println!("Expected: {}\nOutput: {}", expected, output);
             }
         }
+    }
+
+    pub async fn list_problems(&self) -> anyhow::Result<Vec<ProblemSummary>> {
+        let data = match fs::read_to_string(Picker::get_data_path()) {
+            Ok(v) => {
+                // Fetch data in the background and update data.json for next time
+                let client_clone = self.client.clone();
+                tokio::spawn(async move {
+                    let problems = client_clone
+                        .get_problem_list()
+                        .await
+                        .expect("Failed to fetch problem list");
+                    let data =
+                        serde_json::to_string(&problems).expect("Failed to serialize problem list");
+                    fs::write(Picker::get_data_path(), data).expect("Unable to write json to file");
+                });
+                v
+            }
+            Err(_) => {
+                let problems = self
+                    .client
+                    .get_problem_list()
+                    .await
+                    .expect("Failed to fetch problem list");
+                let data =
+                    serde_json::to_string(&problems).expect("Failed to serialize problem list");
+                fs::write(Picker::get_data_path(), data.clone())
+                    .expect("Unable to write json to file");
+                data
+            }
+        };
+        let problems: Vec<ProblemSummary> = serde_json::from_str(&data).map_err(|e| {
+            eprintln!("Failed to parse problem list: {}", e);
+            eprintln!("Try running `leetrs tui` again to refresh the cache.");
+            // Remove the data file since it's corrupted, so the next run will fetch fresh data
+            // from the API
+            if let Err(err) = fs::remove_file(Picker::get_data_path()) {
+                eprintln!("Failed to remove corrupted cache file: {}", err);
+            }
+            e
+        })?;
+        Ok(problems)
     }
 }

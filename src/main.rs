@@ -1,7 +1,8 @@
 use std::{
     fs::{self},
     io,
-    process::Command,
+    process::{self, Command},
+    thread,
 };
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -99,13 +100,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 leetrs::auth::LeetCodeCredentials::load().expect("Please run `leetrs auth` first.");
             let client = leetrs::client::LeetCodeClient::new(creds).expect("Failed to init client");
 
-            println!("⏳ Fetching problem list... (This takes a few seconds)");
+            let picker = Picker::new(client);
 
-            // 2. Fetch Data
-            let problems = client
-                .get_problem_list()
-                .await
-                .expect("Failed to fetch problem list");
+            let problems = match picker.list_problems().await {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("❌ Failed to fetch problems: {}", e);
+                    return Err(e.into());
+                }
+            };
+
             let selected_slug = match leetrs::tui::run_tui(problems).await {
                 Ok(slug) => slug,
                 Err(e) => {
@@ -115,7 +119,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             if let Some(slug) = selected_slug {
-                let picker = Picker::new(client);
                 pick_and_open(picker, &slug, &Some(Language::Python), false).await;
             }
         }
@@ -180,7 +183,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             picker.submit(file).await;
         }
         Commands::Version => {
-            println!("leetrs 1.0.2 (beta)");
+            println!("leetrs 1.0.3 (beta)");
         }
         Commands::Completion { shell } => {
             let mut cmd = Cli::command();

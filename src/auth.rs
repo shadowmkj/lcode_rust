@@ -13,8 +13,13 @@ pub struct LeetCodeCredentials {
 
 impl LeetCodeCredentials {
     fn get_config_path() -> Option<PathBuf> {
-        let dirs = ProjectDirs::from("com", "shadow", "leetrs")?;
+        let dirs = ProjectDirs::from("com", "shadowmkj", "leetrs")?;
         Some(dirs.config_dir().join("credentials.json"))
+    }
+
+    fn get_data_path() -> Option<PathBuf> {
+        let dirs = ProjectDirs::from("com", "shadowmkj", "leetrs")?;
+        Some(dirs.config_dir().join("data.json"))
     }
 
     pub fn load() -> Option<Self> {
