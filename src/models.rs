@@ -98,4 +98,5 @@ pub struct SubmissionCheckResult {
     pub last_testcase: Option<String>,
     pub memory_percentile: Option<f64>,
     pub runtime_percentile: Option<f64>,
+    pub full_runtime_error: Option<String>,
 }

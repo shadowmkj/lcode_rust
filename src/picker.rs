@@ -207,6 +207,10 @@ impl Picker {
             {
                 println!("Expected: {}\nOutput: {}", expected, output);
             }
+        } else if status == "Runtime Error" {
+            if let Some(runtime_error) = result.full_runtime_error {
+                println!("❌ Error\n{}", runtime_error);
+            }
         }
     }
 
