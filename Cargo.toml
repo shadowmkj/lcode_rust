@@ -1,13 +1,15 @@
 [package]
 name = "leetrs"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "A command-line tool to interact with LeetCode."
 license = "MIT"
-repository = "https://github.com/shadowmkj/lcode_rust"
+repository = "https://github.com/shadowmkj/leetrs"
+homepage = "https://github.com/shadowmkj/leetrs"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
+clap_complete = "4.6.0"
 dialoguer = "0.12.0"
 directories = "6.0.0"
 html2md = "0.2.15"
@@ -17,3 +19,9 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 tokio = { version = "1.51.1", features = ["full"] }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+

@@ -1,9 +1,15 @@
 use std::{
     fs::{self},
+    io,
     process::Command,
 };
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{
+    Shell,
+    aot::{Bash, Fish, Zsh},
+    generate,
+};
 use dialoguer::{Password, Select, theme::ColorfulTheme};
 use leetrs::{auth::LeetCodeCredentials, client::LeetCodeClient, models::Language, picker::Picker};
 
@@ -35,6 +41,8 @@ enum Commands {
         /// The path to your solution file (e.g., 'two_sum.rs')
         file: String,
     },
+    /// Setup autocomplete for shell
+    Completion { shell: Shell },
     /// Check leetrs version
     Version,
 }
@@ -265,6 +273,18 @@ async fn main() {
         }
         Commands::Version => {
             println!("leetrs 1.0");
+        }
+        Commands::Completion { shell } => {
+            let mut cmd = Cli::command();
+
+            match shell {
+                Shell::Bash => generate(Bash, &mut cmd, "leetrs", &mut io::stdout()),
+                Shell::Zsh => generate(Zsh, &mut cmd, "leetrs", &mut io::stdout()),
+                Shell::Fish => generate(Fish, &mut cmd, "leetrs", &mut io::stdout()),
+                Shell::Elvish => todo!(),
+                Shell::PowerShell => todo!(),
+                _ => todo!(),
+            }
         }
     }
 }
