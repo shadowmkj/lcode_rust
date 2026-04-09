@@ -42,8 +42,8 @@ Currently, `leetrs` is in beta and must be built from source.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/shadowmkj/leetrs_rust.git
-cd leetcode_engine
+git clone https://github.com/shadowmkj/leetrs.git
+cd leetrs
 
 # 2. Build the release binary
 cargo build --release

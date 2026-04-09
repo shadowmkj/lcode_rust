@@ -229,4 +229,61 @@ impl LeetCodeClient {
             tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
         }
     }
+
+    /// Fetches the master list of all LeetCode problems
+    pub async fn get_problem_list(&self) -> Result<Vec<crate::models::ProblemSummary>> {
+        let url = "https://leetcode.com/api/problems/all/";
+
+        let response = self.http_client.get(url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(crate::error::EngineError::GraphQL(format!(
+                "Failed to fetch problem list: {}",
+                response.status()
+            )));
+        }
+
+        let json_data: serde_json::Value = response.json().await?;
+        let mut problems = Vec::new();
+
+        if let Some(pairs) = json_data
+            .get("stat_status_pairs")
+            .and_then(|v| v.as_array())
+        {
+            for pair in pairs {
+                if let (Some(stat), Some(difficulty)) = (pair.get("stat"), pair.get("difficulty")) {
+                    let id = stat
+                        .get("frontend_question_id")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let title = stat
+                        .get("question__title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let slug = stat
+                        .get("question__title_slug")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let level = difficulty
+                        .get("level")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as u8;
+
+                    problems.push(crate::models::ProblemSummary {
+                        id,
+                        title,
+                        slug,
+                        difficulty: level,
+                    });
+                }
+            }
+        }
+
+        // The API returns them sorted by ID descending by default, let's sort ascending
+        problems.sort_by_key(|p| p.id);
+
+        Ok(problems)
+    }
 }

@@ -95,7 +95,29 @@ async fn main() {
             }
         }
         Commands::Tui => {
-            println!("TUI interface coming soon!");
+            let creds =
+                leetrs::auth::LeetCodeCredentials::load().expect("Please run `leetrs auth` first.");
+            let client = leetrs::client::LeetCodeClient::new(creds).expect("Failed to init client");
+
+            println!("⏳ Fetching problem list... (This takes a few seconds)");
+
+            // 2. Fetch Data
+            let problems = client
+                .get_problem_list()
+                .await
+                .expect("Failed to fetch problem list");
+            let selected_slug = match leetrs::tui::run_tui(problems).await {
+                Ok(slug) => slug,
+                Err(e) => {
+                    eprintln!("Fatal error in TUI: {e}");
+                    return;
+                }
+            };
+
+            if let Some(slug) = selected_slug {
+                let picker = Picker::new(client);
+                pick_and_open(picker, &slug, &Some(Language::Python), false).await;
+            }
         }
         Commands::Status => {
             match LeetCodeCredentials::load() {
@@ -135,37 +157,7 @@ async fn main() {
                 }
             };
             let picker = Picker::new(client);
-            if let Ok((code, desc)) = picker.pick(identifier, language).await {
-                // 4. launch neovim with a vertical split
-                println!("🚀 launching neovim...");
-                if !*preview {
-                    let status = Command::new("nvim")
-                        .arg(&desc)
-                        .arg("-c")
-                        .arg(format!("vsplit {}", code)) // Force a vertical split with the code file
-                        .status();
-
-                    match status {
-                        Ok(exit_status) if exit_status.success() => {
-                            println!("\n👋 neovim closed.");
-                        }
-                        Ok(exit_status) => {
-                            eprintln!("⚠️ neovim exited with an error code: {}", exit_status);
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "❌ failed to launch neovim. is it installed and in your path? error: {}",
-                                e
-                            );
-                        }
-                    }
-                } else {
-                    let content = fs::read_to_string(desc);
-                    if let Ok(content) = content {
-                        print!("{}", content);
-                    }
-                }
-            }
+            pick_and_open(picker, identifier, language, *preview).await;
         }
         Commands::Submit { file } => {
             let creds = match LeetCodeCredentials::load() {
@@ -188,7 +180,7 @@ async fn main() {
             picker.submit(file).await;
         }
         Commands::Version => {
-            println!("leetrs 1.0");
+            println!("leetrs 1.0.2 (beta)");
         }
         Commands::Completion { shell } => {
             let mut cmd = Cli::command();
@@ -200,6 +192,45 @@ async fn main() {
                 Shell::Elvish => todo!(),
                 Shell::PowerShell => todo!(),
                 _ => todo!(),
+            }
+        }
+    }
+}
+
+async fn pick_and_open(
+    picker: Picker,
+    identifier: &String,
+    language: &Option<Language>,
+    preview: bool,
+) {
+    if let Ok((code, desc)) = picker.pick(identifier, language).await {
+        // 4. launch neovim with a vertical split
+        println!("🚀 launching neovim...");
+        if !preview {
+            let status = Command::new("nvim")
+                .arg(&desc)
+                .arg("-c")
+                .arg(format!("vsplit {}", code)) // Force a vertical split with the code file
+                .status();
+
+            match status {
+                Ok(exit_status) if exit_status.success() => {
+                    println!("\n👋 neovim closed.");
+                }
+                Ok(exit_status) => {
+                    eprintln!("⚠️ neovim exited with an error code: {}", exit_status);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "❌ failed to launch neovim. is it installed and in your path? error: {}",
+                        e
+                    );
+                }
+            }
+        } else {
+            let content = fs::read_to_string(desc);
+            if let Ok(content) = content {
+                print!("{}", content);
             }
         }
     }
