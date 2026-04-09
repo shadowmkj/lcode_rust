@@ -282,10 +282,10 @@ fn ui(f: &mut Frame, app: &mut App) {
     // Handle blinking cursor in Editing mode
     if let InputMode::Editing = app.input_mode {
         // We set the cursor position right after the text
-        f.set_cursor(
+        f.set_cursor_position((
             chunks[0].x + app.input.visual_cursor() as u16 + 1,
             chunks[0].y + 1,
-        );
+        ));
     }
 
     let items: Vec<ListItem> = app
