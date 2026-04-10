@@ -143,10 +143,10 @@ impl LeetCodeClient {
                     if current_id == Some(id)
                         && let Some(slug) =
                             stat.get("question__title_slug").and_then(|v| v.as_str())
-                        {
-                            target_slug = Some(slug.to_string());
-                            break;
-                        }
+                    {
+                        target_slug = Some(slug.to_string());
+                        break;
+                    }
                 }
             }
         }
@@ -323,7 +323,9 @@ impl LeetCodeClient {
             .and_then(|v| v.as_array())
         {
             for pair in pairs {
-                if let (Some(stat), Some(difficulty)) = (pair.get("stat"), pair.get("difficulty")) {
+                if let (Some(stat), Some(difficulty), Some(status)) =
+                    (pair.get("stat"), pair.get("difficulty"), pair.get("status"))
+                {
                     let id = stat
                         .get("frontend_question_id")
                         .and_then(|v| v.as_u64())
@@ -342,8 +344,8 @@ impl LeetCodeClient {
                         .get("level")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0) as u8;
-                    let accepted =
-                        stat.get("total_acs").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let status = status.as_str().map(String::from);
+                    let accepted = stat.get("total_acs").and_then(|v| v.as_u64()).unwrap_or(0);
                     let submitted = stat
                         .get("total_submitted")
                         .and_then(|v| v.as_u64())
@@ -358,6 +360,7 @@ impl LeetCodeClient {
                         accepted,
                         submitted,
                         acceptance,
+                        status,
                     });
                 }
             }
