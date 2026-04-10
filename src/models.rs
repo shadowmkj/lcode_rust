@@ -68,8 +68,6 @@ pub struct ProblemSummary {
     pub acceptance: f64,
 }
 
-impl ProblemSummary {}
-
 // ==========================================
 // Submission Models
 // ==========================================

@@ -15,7 +15,7 @@ use std::io;
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 
-use crate::models::ProblemSummary;
+use crate::{models::ProblemSummary, utils::create_split_item};
 
 pub enum InputMode {
     Normal,
@@ -255,19 +255,12 @@ fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([Constraint::Length(3), Constraint::Min(1)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(1),
+            Constraint::Length(2),
+        ])
         .split(f.area());
-
-    match app.input_mode {
-        InputMode::Normal => (
-            "Press '/' to search, 'j'/'k' to scroll, 'Enter' to select, 'q' to quit.",
-            Style::default().fg(Color::DarkGray),
-        ),
-        InputMode::Editing => (
-            "Type to filter, press 'Esc' or 'Enter' to return to list.",
-            Style::default().fg(Color::Yellow),
-        ),
-    };
 
     let title = format!(" Search ({} matches) ", app.filtered_problems.len());
     let input_widget = Paragraph::new(app.input.value())
@@ -300,14 +293,51 @@ fn ui(f: &mut Frame, app: &mut App) {
 
             // Format: "[ID] Title (Difficulty)"
             let line = format!("[{}] {}", p.id, p.title);
-            ListItem::new(line).style(Style::default().fg(diff_color))
+            let acceptance = format!("{:.1}%", p.acceptance * 100.0);
+            create_split_item(&line, &acceptance, diff_color, chunks[1].width)
         })
         .collect();
 
+    let title = match app.difficulty_filter {
+        Some(v) => match v {
+            1 => " Problems (Easy)",
+            2 => " Problems (Medium)",
+            3 => " Problems (Hard)",
+            _ => " Problems ",
+        },
+        None => " Problems ",
+    };
+
     let list = List::new(items)
-        .block(Block::default().title(" Problems ").borders(Borders::ALL))
+        .block(Block::default().title(title).borders(Borders::ALL))
         .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White))
-        .highlight_symbol(">> "); // Arrow pointing to selected item
+        .highlight_symbol(">> ");
 
     f.render_stateful_widget(list, chunks[1], &mut app.list_state);
+
+    let bottom_bar = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(2), Constraint::Length(2)])
+        .split(chunks[2]);
+
+    let instructions = match app.input_mode {
+        InputMode::Normal => (
+            "Press '/' to search, 'j'/'k' to scroll, 'Enter' to select, 'q' to quit.",
+            Style::default().fg(Color::DarkGray),
+        ),
+        InputMode::Editing => (
+            "Type to filter, press 'Esc' to return to list, press 'Enter' to select.",
+            Style::default().fg(Color::Yellow),
+        ),
+    };
+    let instructions = Paragraph::new(instructions.0).style(instructions.1);
+    f.render_widget(instructions, bottom_bar[0]);
+
+    if let InputMode::Normal = app.input_mode {
+        let filter_hint = Paragraph::new(
+            "Press to filter based on difficulty => 1: Easy, 2: Medium, 3: Hard, 4: All ",
+        )
+        .style(Style::default().fg(Color::DarkGray));
+        f.render_widget(filter_hint, bottom_bar[1]);
+    }
 }
