@@ -4,13 +4,14 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    text::Span,
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
 };
 use tui_input::{Input, backend::crossterm::EventHandler};
 
 use crate::{
     models::ProblemSummary,
-    tui::{Action, screen::Screen, utils::create_split_item},
+    tui::{Action, screen::Screen},
 };
 pub enum InputMode {
     Editing,
@@ -20,7 +21,7 @@ pub enum InputMode {
 pub struct SelectionScreen {
     pub all_problems: Vec<ProblemSummary>,
     pub filtered_problems: Vec<ProblemSummary>,
-    pub list_state: ListState,
+    pub table_state: TableState,
     pub selected_problem: Option<String>,
     pub input: Input,
     pub input_mode: InputMode,
@@ -58,23 +59,6 @@ impl Screen for SelectionScreen {
             ));
         }
 
-        let items: Vec<ListItem> = self
-            .filtered_problems
-            .iter()
-            .map(|p| {
-                let diff_color = match p.difficulty {
-                    1 => Color::Green,
-                    2 => Color::Yellow,
-                    _ => Color::Red,
-                };
-
-                // Format: "[ID] Title (Difficulty)"
-                let line = format!("[{}] {}", p.id, p.title);
-                let acceptance = format!("{:.1}%", p.acceptance * 100.0);
-                create_split_item(&line, &acceptance, diff_color, chunks[1].width)
-            })
-            .collect();
-
         let title = match self.difficulty_filter {
             Some(v) => match v {
                 1 => " Problems (Easy)",
@@ -85,12 +69,61 @@ impl Screen for SelectionScreen {
             None => " Problems ",
         };
 
-        let list = List::new(items)
-            .block(Block::default().title(title).borders(Borders::ALL))
-            .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White))
-            .highlight_symbol(">> ");
+        let header_cells = ["ID", "Name", "Acceptance", "Done"]
+            .into_iter()
+            .map(|h| Cell::from(h).style(Style::default().fg(Color::Yellow)));
+        let header = Row::new(header_cells).style(Style::default());
 
-        frame.render_stateful_widget(list, chunks[1], &mut self.list_state);
+        let rows = self.filtered_problems.iter().map(|p| {
+            let diff_color = match p.difficulty {
+                1 => Color::Green,
+                2 => Color::Yellow,
+                _ => Color::Red,
+            };
+
+            let id_cell = Cell::from(Span::styled(
+                format!("[{}]", p.id.to_string()),
+                Style::default().fg(diff_color),
+            ));
+            let name_cell = Cell::from(Span::styled(
+                p.title.clone(),
+                Style::default().fg(diff_color),
+            ));
+            let acceptance_text = format!("{:.1}%", p.acceptance * 100.0);
+            let acceptance_cell = Cell::from(acceptance_text);
+            let done_text = if let Some(status) = &p.status {
+                match status.as_str() {
+                    "ac" => "",
+                    "notac" => "",
+                    _ => "",
+                }
+            } else {
+                ""
+            };
+
+            let done_cell = match done_text {
+                "" => Cell::from(done_text).style(Style::default().fg(Color::Green)),
+                _ => Cell::from(done_text).style(Style::default().fg(Color::White)),
+            };
+
+            Row::new(vec![id_cell, name_cell, acceptance_cell, done_cell])
+        });
+
+        let table = Table::new(
+            rows,
+            [
+                Constraint::Length(6),
+                Constraint::Percentage(55),
+                Constraint::Min(10),
+                Constraint::Min(1),
+            ],
+        )
+        .header(header)
+        .block(Block::default().title(title).borders(Borders::ALL))
+        .row_highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White))
+        .highlight_symbol(">> ");
+
+        frame.render_stateful_widget(table, chunks[1], &mut self.table_state);
 
         let bottom_bar = Layout::default()
             .direction(Direction::Vertical)
@@ -135,7 +168,7 @@ impl Screen for SelectionScreen {
                 KeyCode::Up | KeyCode::Char('k') => self.previous(),
                 KeyCode::Char('/') => self.input_mode = InputMode::Editing,
                 KeyCode::Enter => {
-                    if let Some(i) = self.list_state.selected()
+                    if let Some(i) = self.table_state.selected()
                         && !self.filtered_problems.is_empty()
                     {
                         return Some(Action::Select(self.filtered_problems[i].slug.clone()));
@@ -154,7 +187,7 @@ impl Screen for SelectionScreen {
                     self.input_mode = InputMode::Normal;
                 }
                 KeyCode::Enter => {
-                    if let Some(i) = self.list_state.selected()
+                    if let Some(i) = self.table_state.selected()
                         && !self.filtered_problems.is_empty()
                     {
                         return Some(Action::Select(self.filtered_problems[i].slug.clone()));
@@ -181,7 +214,7 @@ impl Screen for SelectionScreen {
 
 impl SelectionScreen {
     pub fn new(problems: Vec<ProblemSummary>) -> Self {
-        let mut list_state = ListState::default();
+        let mut list_state = TableState::default();
         if !problems.is_empty() {
             list_state.select(Some(0)); // Start by highlighting the first item
         }
@@ -190,7 +223,7 @@ impl SelectionScreen {
             selected_problem: None,
             filtered_problems: problems.clone(),
             all_problems: problems,
-            list_state,
+            table_state: list_state,
             input: Input::default(),
             input_mode: InputMode::Normal,
             difficulty_filter: None,
@@ -198,7 +231,7 @@ impl SelectionScreen {
     }
 
     pub fn next(&mut self) {
-        let i = match self.list_state.selected() {
+        let i = match self.table_state.selected() {
             Some(i) => {
                 if i >= self.all_problems.len() - 1 {
                     0
@@ -208,12 +241,12 @@ impl SelectionScreen {
             }
             None => 0,
         };
-        self.list_state.select(Some(i));
+        self.table_state.select(Some(i));
     }
 
     // Move cursor up
     pub fn previous(&mut self) {
-        let i = match self.list_state.selected() {
+        let i = match self.table_state.selected() {
             Some(i) => {
                 if i == 0 {
                     self.all_problems.len() - 1
@@ -223,7 +256,7 @@ impl SelectionScreen {
             }
             None => 0,
         };
-        self.list_state.select(Some(i));
+        self.table_state.select(Some(i));
     }
 
     pub fn switch_difficulty(&mut self, difficulty: u8) {
@@ -275,9 +308,9 @@ impl SelectionScreen {
 
         //NOTE: Reset the cursor to 0 when the list changes so we don't panic out of bounds
         if !self.filtered_problems.is_empty() {
-            self.list_state.select(Some(0));
+            self.table_state.select(Some(0));
         } else {
-            self.list_state.select(None);
+            self.table_state.select(None);
         }
     }
 }

@@ -62,12 +62,13 @@ pub struct Question {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProblemSummary {
     pub id: u64,
-    pub title: String,
-    pub slug: String,
-    pub difficulty: u8, // 1 = Easy, 2 = Medium, 3 = Hard
-    pub accepted: u64,
-    pub submitted: u64,
     pub acceptance: f64,
+    pub accepted: u64,
+    pub difficulty: u8, // 1 = Easy, 2 = Medium, 3 = Hard
+    pub slug: String,
+    pub status: Option<String>,
+    pub submitted: u64,
+    pub title: String,
 }
 
 // ==========================================
