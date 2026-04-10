@@ -24,84 +24,67 @@ impl Screen for HelpScreen {
 
         let help_area = chunks[0];
 
-        let mut items: Vec<ListItem> = Vec::new();
-
-        // Section: Global
-        items.push(create_split_item(
-            "Global",
-            "",
-            Color::White,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "Tab",
-            "Switch between Problems and Help",
-            Color::Cyan,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "q / Esc",
-            "Quit the application (from any tab)",
-            Color::Cyan,
-            help_area.width,
-        ));
-
-        items.push(create_split_item("", "", Color::White, help_area.width));
-
-        // Section: Problems tab (Selection)
-        items.push(create_split_item(
-            "Problems",
-            "",
-            Color::White,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "/",
-            "Start searching problems",
-            Color::Green,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "j / k or ↓ / ↑",
-            "Move selection down / up",
-            Color::Green,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "Enter",
-            "Select the highlighted problem",
-            Color::Green,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "1 / 2 / 3 / 4",
-            "Filter by difficulty (Easy / Med / Hard / All)",
-            Color::Green,
-            help_area.width,
-        ));
-        items.push(create_split_item(
-            "Ctrl+j / Ctrl+k",
-            "Move selection while searching",
-            Color::Green,
-            help_area.width,
-        ));
-
-        items.push(create_split_item("", "", Color::White, help_area.width));
-
-        // Section: Search mode specifics
-        items.push(create_split_item(
-            "Search mode",
-            "",
-            Color::White,
-            help_area.width,
-        ));
-
-        items.push(create_split_item(
-            "Esc",
-            "Return to list from search",
-            Color::Yellow,
-            help_area.width,
-        ));
+        let items: Vec<ListItem> = vec![
+            create_split_item("Global", "", Color::White, help_area.width),
+            create_split_item(
+                "Tab",
+                "Switch between Problems and Help",
+                Color::Cyan,
+                help_area.width,
+            ),
+            create_split_item(
+                "q / Esc",
+                "Quit the application (from any tab)",
+                Color::Cyan,
+                help_area.width,
+            ),
+            create_split_item("", "", Color::White, help_area.width),
+            create_split_item("Problems", "", Color::White, help_area.width),
+            create_split_item(
+                "/",
+                "Start searching problems",
+                Color::Green,
+                help_area.width,
+            ),
+            create_split_item(
+                "j / k or ↓ / ↑",
+                "Move selection down / up",
+                Color::Green,
+                help_area.width,
+            ),
+            create_split_item(
+                "Enter",
+                "Select the highlighted problem",
+                Color::Green,
+                help_area.width,
+            ),
+            create_split_item(
+                "1 / 2 / 3 / 4",
+                "Filter by difficulty (Easy / Med / Hard / All)",
+                Color::Green,
+                help_area.width,
+            ),
+            create_split_item(
+                "Ctrl+j / Ctrl+k",
+                "Move selection while searching",
+                Color::Green,
+                help_area.width,
+            ),
+            create_split_item("", "", Color::White, help_area.width),
+            create_split_item("Search mode", "", Color::White, help_area.width),
+            create_split_item(
+                "Esc",
+                "Return to list from search",
+                Color::Yellow,
+                help_area.width,
+            ),
+            create_split_item(
+                "Esc",
+                "Return to list from search",
+                Color::Yellow,
+                help_area.width,
+            ),
+        ];
 
         let help_list = List::new(items).block(
             Block::default()
@@ -128,6 +111,12 @@ impl Screen for HelpScreen {
 
 impl HelpScreen {
     pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for HelpScreen {
+    fn default() -> Self {
         Self
     }
 }

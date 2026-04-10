@@ -18,7 +18,7 @@ use leetrs::{
     picker::Picker,
 };
 
-const VERSION: &'static str = "1.0.9";
+const VERSION: &str = "1.0.10";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
@@ -46,6 +46,11 @@ enum Commands {
     },
     /// Submit a problem to leetcode
     Submit {
+        /// The path to your solution file (e.g., 'two_sum.rs')
+        file: String,
+    },
+    /// Test a problem without full submit
+    Test {
         /// The path to your solution file (e.g., 'two_sum.rs')
         file: String,
     },
@@ -145,6 +150,26 @@ async fn main() -> anyhow::Result<()> {
             };
             let picker = Picker::new(client);
             pick_and_open(picker, identifier, language, *preview).await;
+        }
+        Some(Commands::Test { file }) => {
+            let creds = match LeetCodeCredentials::load() {
+                Some(c) => c,
+                None => {
+                    eprintln!("❌ Not authenticated. Please run `leetrs auth` first.");
+                    return Ok(());
+                }
+            };
+
+            let client = match LeetCodeClient::new(creds) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("❌ Failed to initialize client: {}", e);
+                    return Err(e.into());
+                }
+            };
+
+            let picker = Picker::new(client);
+            picker.test_submit(file).await;
         }
         Some(Commands::Submit { file }) => {
             let creds = match LeetCodeCredentials::load() {

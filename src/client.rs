@@ -1,6 +1,9 @@
 use crate::auth::LeetCodeCredentials;
 use crate::error::{EngineError, Result};
-use crate::models::{GraphQLQuery, Question, SubmissionCheckResult, SubmitPayload, SubmitResponse};
+use crate::models::{
+    GraphQLQuery, Question, SubmissionCheckResult, SubmitPayload, SubmitResponse, TestPayload,
+    TestSubmissionCheckResult, TestSubmitResponse,
+};
 use reqwest::Client;
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::json;
@@ -83,6 +86,7 @@ impl LeetCodeClient {
                     title
                     titleSlug
                     content
+                    exampleTestcases
                     codeSnippets {
                         langSlug
                         code
@@ -136,14 +140,13 @@ impl LeetCodeClient {
                 if let Some(stat) = pair.get("stat") {
                     let current_id = stat.get("frontend_question_id").and_then(|v| v.as_u64());
 
-                    if current_id == Some(id) {
-                        if let Some(slug) =
+                    if current_id == Some(id)
+                        && let Some(slug) =
                             stat.get("question__title_slug").and_then(|v| v.as_str())
                         {
                             target_slug = Some(slug.to_string());
                             break;
                         }
-                    }
                 }
             }
         }
@@ -153,6 +156,50 @@ impl LeetCodeClient {
 
         // Chain directly into the slug fetcher, returning Result<Question>
         self.get_question_by_slug(&slug).await
+    }
+
+    /// Test raw code to a problem
+    pub async fn test_code(
+        &self,
+        title_slug: &str,
+        question_id: &str,
+        lang: &str,
+        code: &str,
+        test_cases: &str,
+    ) -> Result<String> {
+        let url = format!(
+            "https://leetcode.com/problems/{}/interpret_solution/",
+            title_slug
+        );
+
+        let payload = TestPayload {
+            lang: lang.to_string(),
+            question_id: question_id.to_string(),
+            typed_code: code.to_string(),
+            data_input: test_cases.to_string(),
+        };
+
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&payload)
+            // Critical: LeetCode requires the Referer header to match the problem page to bypass CSRF checks
+            .header(
+                "Referer",
+                format!("https://leetcode.com/problems/{}/", title_slug),
+            )
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(EngineError::GraphQL(format!(
+                "Test Submission failed: {}",
+                response.status()
+            )));
+        }
+
+        let result: TestSubmitResponse = response.json().await?;
+        Ok(result.interpret_id)
     }
 
     /// Submit raw code to a problem
@@ -192,6 +239,38 @@ impl LeetCodeClient {
 
         let result: SubmitResponse = response.json().await?;
         Ok(result.submission_id)
+    }
+
+    /// Poll the test submission status until it completes
+    pub async fn check_test_submission(
+        &self,
+        interpret_id: String,
+    ) -> Result<TestSubmissionCheckResult> {
+        let url = format!(
+            "https://leetcode.com/submissions/detail/{}/check/",
+            interpret_id
+        );
+
+        loop {
+            let response = self.http_client.get(&url).send().await?;
+
+            if !response.status().is_success() {
+                return Err(EngineError::GraphQL(format!(
+                    "Check failed: {}",
+                    response.status()
+                )));
+            }
+
+            let result: TestSubmissionCheckResult = response.json().await?;
+
+            // LeetCode's state moves from "PENDING" or "STARTED" to "SUCCESS" when execution finishes
+            if result.state == "SUCCESS" {
+                return Ok(result);
+            }
+
+            // Sleep for 1.5 seconds before polling again to avoid hitting rate limits
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        }
     }
 
     /// Poll the submission status until it completes
@@ -264,11 +343,11 @@ impl LeetCodeClient {
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0) as u8;
                     let accepted =
-                        stat.get("total_acs").and_then(|v| v.as_u64()).unwrap_or(0) as u64;
+                        stat.get("total_acs").and_then(|v| v.as_u64()).unwrap_or(0);
                     let submitted = stat
                         .get("total_submitted")
                         .and_then(|v| v.as_u64())
-                        .unwrap_or(0) as u64;
+                        .unwrap_or(0);
                     let acceptance = accepted as f64 / submitted as f64;
 
                     problems.push(crate::models::ProblemSummary {

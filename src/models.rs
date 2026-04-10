@@ -53,6 +53,8 @@ pub struct Question {
     pub title_slug: String,
     pub title: String,
     pub content: String,
+    #[serde(rename = "exampleTestcases")]
+    pub example_test_cases: String,
     #[serde(rename = "codeSnippets")]
     pub code_snippets: Vec<QuestionSnippet>,
 }
@@ -79,28 +81,61 @@ pub struct SubmitPayload {
     pub typed_code: String,
 }
 
+#[derive(Serialize, Debug)]
+pub struct TestPayload {
+    pub lang: String,
+    pub question_id: String,
+    pub typed_code: String,
+    pub data_input: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TestSubmitResponse {
+    pub interpret_id: String,
+    pub test_case: String,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct SubmitResponse {
     pub submission_id: u64,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SubmissionCheckResult {
-    pub state: String,              // "PENDING", "STARTED", "SUCCESS"
-    pub status_msg: Option<String>, // "Accepted", "Wrong Answer", "Compile Error"
-    pub compile_error: Option<String>,
+pub struct TestSubmissionCheckResult {
+    pub code_answer: Option<Vec<String>>,
+    pub code_output: Option<Vec<String>>,
+    pub correct_answer: Option<bool>,
+    pub expected_code_answer: Option<Vec<String>>,
+    pub full_runtime_error: Option<String>,
+    pub lang: Option<String>,
+    pub memory_percentile: Option<f64>,
     pub run_success: Option<bool>,
+    pub runtime_percentile: Option<f64>,
+    pub state: String,
+    pub status_memory: Option<String>,
+    pub status_msg: Option<String>,
+    pub status_runtime: Option<String>,
     pub total_correct: Option<u32>,
     pub total_testcases: Option<u32>,
-    pub status_memory: Option<String>,
-    pub status_runtime: Option<String>,
-    pub expected_output: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SubmissionCheckResult {
     pub code_output: Option<String>,
+    pub compile_error: Option<String>,
+    pub expected_output: Option<String>,
     pub finished: Option<bool>,
-    pub input_formatted: Option<String>,
+    pub full_runtime_error: Option<String>,
     pub input: Option<String>,
+    pub input_formatted: Option<String>,
     pub last_testcase: Option<String>,
     pub memory_percentile: Option<f64>,
+    pub run_success: Option<bool>,
     pub runtime_percentile: Option<f64>,
-    pub full_runtime_error: Option<String>,
+    pub state: String, // "PENDING", "STARTED", "SUCCESS"
+    pub status_memory: Option<String>,
+    pub status_msg: Option<String>, // "Accepted", "Wrong Answer", "Compile Error"
+    pub status_runtime: Option<String>,
+    pub total_correct: Option<u32>,
+    pub total_testcases: Option<u32>,
 }

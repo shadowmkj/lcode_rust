@@ -1,1 +1,6 @@
 /target
+Makefile
+*.py
+*.md
+*.json
+!README.md

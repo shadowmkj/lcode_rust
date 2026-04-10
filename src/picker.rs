@@ -17,13 +17,12 @@ impl Picker {
     pub fn get_data_path() -> String {
         let project_dirs = directories::ProjectDirs::from("com", "shadowmkj", "leetrs").unwrap();
         let data_dir = project_dirs.data_dir();
-        if !data_dir.exists() {
-            if let Err(e) = fs::create_dir_all(data_dir) {
+        if !data_dir.exists()
+            && let Err(e) = fs::create_dir_all(data_dir) {
                 eprintln!("❌ Failed to create data directory: {}", e);
                 process::exit(1);
             }
-        }
-        return data_dir.join("data.json").to_str().unwrap().to_string();
+        data_dir.join("data.json").to_str().unwrap().to_string()
     }
 
     pub async fn pick(
@@ -58,7 +57,7 @@ impl Picker {
             }
             Identifier::String(identifier) => {
                 println!("🔍 Fetching problem: {}...", identifier);
-                self.client.get_question_by_slug(&identifier).await.unwrap()
+                self.client.get_question_by_slug(identifier).await.unwrap()
             }
         };
 
@@ -115,11 +114,120 @@ impl Picker {
             return Err(EngineError::System);
         }
 
-        return Ok((code_filename, desc_filename));
+        Ok((code_filename, desc_filename))
+    }
+
+    pub async fn test_submit(&self, file: &String) {
+        let code = match std::fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("❌ Failed to read file '{}': {}", file, e);
+                return;
+            }
+        };
+
+        // Extract the slug from the filename (e.g., "two_sum.rs" -> "two-sum")
+        let path = std::path::Path::new(&file);
+        let file_stem = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default();
+        let slug = file_stem.replace("_", "-");
+        println!("🔍 Resolving ID for '{}'...", slug);
+        let language = Language::from_extension(
+            path.extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default(),
+        );
+
+        let question = match self.client.get_question_by_slug(&slug).await {
+            Ok(q) => q,
+            Err(e) => {
+                eprintln!(
+                    "❌ Failed to fetch question ID. Does the filename match the problem slug? Error: {}",
+                    e
+                );
+                return;
+            }
+        };
+
+        println!("🚀 Submitting {}...", file);
+        let interpret_id = match self
+            .client
+            .test_code(
+                &slug,
+                &question.question_id,
+                language.to_lang_slug(),
+                &code,
+                &question.example_test_cases,
+            )
+            .await
+        {
+            Ok(id) => id,
+            Err(e) => {
+                eprintln!("❌ Test Submission failed: {}", e);
+                return;
+            }
+        };
+
+        println!("⏳ Code queued. Waiting for execution results...");
+        let result = match self.client.check_test_submission(interpret_id).await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("❌ Failed to check test submission status: {}", e);
+                return;
+            }
+        };
+
+        println!("\n==================================================");
+
+        let status = result.correct_answer.unwrap_or(false);
+
+        if status {
+            println!("  ✅ All test cases passed");
+        } else {
+            println!("  ❌ Test Failed");
+        }
+
+        println!("==================================================\n");
+
+        if let (Some(correct), Some(total)) = (result.total_correct, result.total_testcases) {
+            println!("🧪 Testcases: {} / {} passed", correct, total);
+        }
+
+        let status_msg = result.status_msg.unwrap_or("Unknown".to_string());
+        if status && status_msg == "Accepted" {
+            if let Some(runtime) = result.status_runtime {
+                println!("⏱️ Runtime: {}", runtime);
+            }
+            if let Some(memory) = result.status_memory {
+                println!("💾 Memory: {}", memory);
+            }
+            if let Some(memory_percentile) = result.memory_percentile {
+                println!("📝 Memory Percentile: {:.2}%", memory_percentile);
+            }
+            if let Some(runtime_percentile) = result.runtime_percentile {
+                println!("⏰ Runtime Percentile: {:.2}%", runtime_percentile);
+            }
+        } else if status_msg == "Accepted" {
+            if let (Some(code_answers), Some(expected)) = (
+                result.code_answer.as_ref(),
+                result.expected_code_answer.as_ref(),
+            ) {
+                println!("Expected");
+                println!("{}", expected.join("\t"));
+                println!("Output");
+                println!("{}", code_answers.join("\t"));
+            }
+        } else if status_msg == "Runtime Error"
+            && let Some(runtime_error) = result.full_runtime_error {
+                println!("❌ Error\n{}", runtime_error);
+            }
     }
 
     pub async fn submit(&self, file: &String) {
-        let code = match std::fs::read_to_string(&file) {
+        let code = match std::fs::read_to_string(file) {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("❌ Failed to read file '{}': {}", file, e);
@@ -222,11 +330,10 @@ impl Picker {
             {
                 println!("Expected: {}\nOutput: {}", expected, output);
             }
-        } else if status == "Runtime Error" {
-            if let Some(runtime_error) = result.full_runtime_error {
+        } else if status == "Runtime Error"
+            && let Some(runtime_error) = result.full_runtime_error {
                 println!("❌ Error\n{}", runtime_error);
             }
-        }
     }
 
     pub async fn list_problems(&self) -> anyhow::Result<Vec<ProblemSummary>> {

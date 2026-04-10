@@ -106,21 +106,21 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
         if event::poll(std::time::Duration::from_millis(50))? {
             let event = event::read()?;
             //TODO: Match screen here and do appropriate event listening/handling
-            if let Event::Key(key) = event {
-                if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Tab => app.switch(),
-                        KeyCode::Char('?') => app.tab = Tab::Help,
-                        _ => {
-                            if let Some(action) = screen.event_loop(&key) {
-                                match action {
-                                    Action::Quit => {
-                                        app.should_quit = true;
-                                    }
-                                    Action::Select(problem) => {
-                                        app.selected_problem = Some(problem);
-                                        app.should_quit = true;
-                                    }
+            if let Event::Key(key) = event
+                && key.kind == KeyEventKind::Press
+            {
+                match key.code {
+                    KeyCode::Tab => app.switch(),
+                    KeyCode::Char('?') => app.tab = Tab::Help,
+                    _ => {
+                        if let Some(action) = screen.event_loop(&key) {
+                            match action {
+                                Action::Quit => {
+                                    app.should_quit = true;
+                                }
+                                Action::Select(problem) => {
+                                    app.selected_problem = Some(problem);
+                                    app.should_quit = true;
                                 }
                             }
                         }

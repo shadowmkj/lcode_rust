@@ -135,10 +135,10 @@ impl Screen for SelectionScreen {
                 KeyCode::Up | KeyCode::Char('k') => self.previous(),
                 KeyCode::Char('/') => self.input_mode = InputMode::Editing,
                 KeyCode::Enter => {
-                    if let Some(i) = self.list_state.selected() {
-                        if !self.filtered_problems.is_empty() {
-                            return Some(Action::Select(self.filtered_problems[i].slug.clone()));
-                        }
+                    if let Some(i) = self.list_state.selected()
+                        && !self.filtered_problems.is_empty()
+                    {
+                        return Some(Action::Select(self.filtered_problems[i].slug.clone()));
                     }
                 }
                 KeyCode::Char(c) => {
@@ -154,10 +154,10 @@ impl Screen for SelectionScreen {
                     self.input_mode = InputMode::Normal;
                 }
                 KeyCode::Enter => {
-                    if let Some(i) = self.list_state.selected() {
-                        if !self.filtered_problems.is_empty() {
-                            return Some(Action::Select(self.filtered_problems[i].slug.clone()));
-                        }
+                    if let Some(i) = self.list_state.selected()
+                        && !self.filtered_problems.is_empty()
+                    {
+                        return Some(Action::Select(self.filtered_problems[i].slug.clone()));
                     }
                 }
                 KeyCode::Char('j') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
