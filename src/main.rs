@@ -18,7 +18,7 @@ use leetrs::{
     picker::Picker,
 };
 
-const VERSION: &'static str = "1.0.6";
+const VERSION: &'static str = "1.0.7";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]

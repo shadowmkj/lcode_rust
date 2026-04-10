@@ -1,6 +1,6 @@
 [package]
 name = "leetrs"
-version = "1.0.6"
+version = "1.0.7"
 edition = "2024"
 description = "A command-line tool to interact with LeetCode."
 license = "MIT"
