@@ -18,7 +18,7 @@ use leetrs::{
     picker::Picker,
 };
 
-const VERSION: &'static str = "1.0.7";
+const VERSION: &'static str = "1.0.8";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
@@ -239,6 +239,7 @@ async fn open_tui() {
             return;
         }
     };
+
     loop {
         //OPTIM: Make sure to optimize this without cloning
         let selected_slug = match leetrs::tui::run_tui(problems.clone()).await {

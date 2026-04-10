@@ -9,5 +9,3 @@ pub mod client;
 pub mod picker;
 
 pub mod tui;
-
-pub mod utils;
