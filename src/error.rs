@@ -12,6 +12,8 @@ pub enum EngineError {
     GraphQL(String),
     #[error("System error")]
     System,
+    #[error("Other: {0}")]
+    Other(String),
 }
 
 pub type Result<T> = std::result::Result<T, EngineError>;
