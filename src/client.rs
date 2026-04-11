@@ -63,17 +63,18 @@ impl LeetCodeClient {
             ));
         }
 
-        let json_data: serde_json::Value = response.json().await?;
+        let mut json_data: serde_json::Value = response.json().await?;
 
         if let Some(errors) = json_data.get("errors") {
             return Err(EngineError::GraphQL(errors.to_string()));
         }
 
         let data = json_data
-            .get("data")
+            .get_mut("data")
+            .map(std::mem::take)
             .ok_or_else(|| EngineError::GraphQL("Missing data field".into()))?;
 
-        serde_json::from_value(data.clone()).map_err(EngineError::from)
+        serde_json::from_value(data).map_err(EngineError::from)
     }
 
     /// Fetch a specific problem's details and boilerplate using its URL slug
@@ -316,12 +317,12 @@ impl LeetCodeClient {
         }
 
         let json_data: serde_json::Value = response.json().await?;
-        let mut problems = Vec::new();
 
         if let Some(pairs) = json_data
             .get("stat_status_pairs")
             .and_then(|v| v.as_array())
         {
+            let mut problems = Vec::with_capacity(pairs.len());
             for pair in pairs {
                 if let (Some(stat), Some(difficulty), Some(status)) =
                     (pair.get("stat"), pair.get("difficulty"), pair.get("status"))
@@ -364,10 +365,12 @@ impl LeetCodeClient {
                     });
                 }
             }
+            // The API returns them sorted by ID descending by default, let's sort ascending
+            problems.sort_by_key(|p| p.id);
+            return Ok(problems);
         }
-
-        // The API returns them sorted by ID descending by default, let's sort ascending
-        problems.sort_by_key(|p| p.id);
-        Ok(problems)
+        Err(EngineError::Other(
+            "Error retrieving problem list".to_string(),
+        ))
     }
 }

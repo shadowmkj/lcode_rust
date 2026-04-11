@@ -1,8 +1,8 @@
 pub mod screen;
 mod utils;
 
-use crate::tui::screen::help_screen::HelpScreen;
-use crate::tui::screen::selection_screen::SelectionScreen;
+use crate::tui::screen::selection_screen::{InputMode, SelectionScreen};
+use crate::{picker::Picker, tui::screen::help_screen::HelpScreen};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
@@ -14,9 +14,10 @@ use ratatui::{
     widgets::ListState,
 };
 use screen::Screen;
+use std::process::Command;
 use std::{io, rc::Rc};
 
-use crate::models::ProblemSummary;
+use crate::models::{Identifier, Language, ProblemSummary};
 
 #[derive(Default)]
 pub enum Tab {
@@ -46,7 +47,7 @@ impl App {
         if !problems.is_empty() {
             list_state.select(Some(0)); // Start by highlighting the first item
         }
-        //OPTIM: Instead of cloning here, use a single allocation
+
         Self {
             should_quit: false,
             selection_screen: SelectionScreen::new(Rc::clone(&problems)),
@@ -66,34 +67,40 @@ impl App {
 }
 
 /// The main entry point for the TUI
-pub async fn run_tui(
-    problems: Rc<[ProblemSummary]>,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
-    // 1. Setup Terminal (Enter raw mode and alternate screen)
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    // 2. Create app state and run the event loop
+pub async fn run_tui(problems: Rc<[ProblemSummary]>, picker: Picker) -> anyhow::Result<()> {
     let mut app = App::new(problems);
-    let res = run_app(&mut terminal, &mut app).await;
+    let _result = loop {
+        enable_raw_mode().map_err(anyhow::Error::from)?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen).map_err(anyhow::Error::from)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
 
-    // 3. Restore Terminal (Crucial: If we don't do this, the terminal will break on exit)
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+        let result = run_app(&mut terminal, &mut app).await;
 
-    if let Err(err) = res {
-        eprintln!("Error running TUI: {:?}", err);
-    }
+        disable_raw_mode().map_err(anyhow::Error::from)?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen).map_err(anyhow::Error::from)?;
+        terminal.show_cursor().map_err(anyhow::Error::from)?;
 
-    Ok(app.selected_problem)
+        match result {
+            Ok(Some(problem)) => {
+                pick_and_open_nvim(&picker, &Identifier::String(problem), &None).await;
+                app.selection_screen.input_mode = InputMode::Normal;
+                app.should_quit = false;
+                app.selected_problem = None;
+            }
+            Ok(None) => break Ok(()),
+            Err(e) => break Err(anyhow::Error::from(e)),
+        }
+    };
+    Ok(())
 }
 
 /// The Event Loop
-async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
+async fn run_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+) -> io::Result<Option<String>> {
     loop {
         let screen: &mut dyn Screen = match app.tab {
             Tab::Selection => &mut app.selection_screen,
@@ -105,7 +112,6 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
         // Poll for keystrokes (non-blocking)
         if event::poll(std::time::Duration::from_millis(50))? {
             let event = event::read()?;
-            //TODO: Match screen here and do appropriate event listening/handling
             if let Event::Key(key) = event
                 && key.kind == KeyEventKind::Press
             {
@@ -130,7 +136,38 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
         }
 
         if app.should_quit {
-            return Ok(());
+            return Ok(app.selected_problem.clone());
+        }
+    }
+}
+
+pub async fn pick_and_open_nvim(
+    picker: &Picker,
+    identifier: &Identifier,
+    language: &Option<Language>,
+) {
+    if let Ok((code, desc)) = picker.pick(identifier, language).await {
+        // 4. launch neovim with a vertical split
+        println!("🚀 launching neovim...");
+        let status = Command::new("nvim")
+            .arg(&desc)
+            .arg("-c")
+            .arg(format!("vsplit {}", code)) // Force a vertical split with the code file
+            .status();
+
+        match status {
+            Ok(exit_status) if exit_status.success() => {
+                println!("\n👋 neovim closed.");
+            }
+            Ok(exit_status) => {
+                eprintln!("⚠️ neovim exited with an error code: {}", exit_status);
+            }
+            Err(e) => {
+                eprintln!(
+                    "❌ failed to launch neovim. is it installed and in your path? error: {}",
+                    e
+                );
+            }
         }
     }
 }

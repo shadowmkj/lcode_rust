@@ -18,10 +18,11 @@ impl Picker {
         let project_dirs = directories::ProjectDirs::from("com", "shadowmkj", "leetrs").unwrap();
         let data_dir = project_dirs.data_dir();
         if !data_dir.exists()
-            && let Err(e) = fs::create_dir_all(data_dir) {
-                eprintln!("❌ Failed to create data directory: {}", e);
-                process::exit(1);
-            }
+            && let Err(e) = fs::create_dir_all(data_dir)
+        {
+            eprintln!("❌ Failed to create data directory: {}", e);
+            process::exit(1);
+        }
         data_dir.join("data.json").to_str().unwrap().to_string()
     }
 
@@ -221,9 +222,10 @@ impl Picker {
                 println!("{}", code_answers.join("\t"));
             }
         } else if status_msg == "Runtime Error"
-            && let Some(runtime_error) = result.full_runtime_error {
-                println!("❌ Error\n{}", runtime_error);
-            }
+            && let Some(runtime_error) = result.full_runtime_error
+        {
+            println!("❌ Error\n{}", runtime_error);
+        }
     }
 
     pub async fn submit(&self, file: &String) {
@@ -331,9 +333,10 @@ impl Picker {
                 println!("Expected: {}\nOutput: {}", expected, output);
             }
         } else if status == "Runtime Error"
-            && let Some(runtime_error) = result.full_runtime_error {
-                println!("❌ Error\n{}", runtime_error);
-            }
+            && let Some(runtime_error) = result.full_runtime_error
+        {
+            println!("❌ Error\n{}", runtime_error);
+        }
     }
 
     pub async fn list_problems(&self) -> anyhow::Result<Vec<ProblemSummary>> {
@@ -360,8 +363,7 @@ impl Picker {
                     .expect("Failed to fetch problem list");
                 let data =
                     serde_json::to_string(&problems).expect("Failed to serialize problem list");
-                fs::write(Picker::get_data_path(), data.clone())
-                    .expect("Unable to write json to file");
+                fs::write(Picker::get_data_path(), &data).expect("Unable to write json to file");
                 data
             }
         };

@@ -19,7 +19,7 @@ use leetrs::{
     picker::Picker,
 };
 
-const VERSION: &str = "1.0.12";
+const VERSION: &str = "1.0.13";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
@@ -150,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
                 }
             };
             let picker = Picker::new(client);
-            pick_and_open(picker, identifier, language, *preview).await;
+            pick_and_open(&picker, identifier, language, *preview).await;
         }
         Some(Commands::Test { file }) => {
             let creds = match LeetCodeCredentials::load() {
@@ -213,8 +213,8 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn pick_and_open(
-    picker: Picker,
+pub async fn pick_and_open(
+    picker: &Picker,
     identifier: &Identifier,
     language: &Option<Language>,
     preview: bool,
@@ -268,26 +268,5 @@ async fn open_tui() {
 
     let problems: Rc<[ProblemSummary]> = Rc::from(problems);
 
-    loop {
-        //OPTIM: Make sure to optimize this without cloning
-        let selected_slug = match leetrs::tui::run_tui(Rc::clone(&problems)).await {
-            Ok(slug) => slug,
-            Err(e) => {
-                eprintln!("Fatal error in TUI: {e}");
-                return;
-            }
-        };
-
-        if let Some(slug) = selected_slug {
-            pick_and_open(
-                picker.clone(),
-                &Identifier::String(slug),
-                &Some(Language::Python),
-                false,
-            )
-            .await;
-        } else {
-            break;
-        }
-    }
+    let _ = leetrs::tui::run_tui(Rc::clone(&problems), picker).await;
 }
