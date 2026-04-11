@@ -14,7 +14,7 @@ use ratatui::{
     widgets::ListState,
 };
 use screen::Screen;
-use std::io;
+use std::{io, rc::Rc};
 
 use crate::models::ProblemSummary;
 
@@ -28,7 +28,7 @@ pub enum Tab {
 /// Holds the state of the application
 pub struct App {
     pub should_quit: bool,
-    pub problems: Vec<ProblemSummary>,
+    pub problems: Rc<[ProblemSummary]>,
     pub tab: Tab,
     pub selection_screen: SelectionScreen,
     pub help_screen: HelpScreen,
@@ -41,7 +41,7 @@ pub enum Action {
 }
 
 impl App {
-    pub fn new(problems: Vec<ProblemSummary>) -> Self {
+    pub fn new(problems: Rc<[ProblemSummary]>) -> Self {
         let mut list_state = ListState::default();
         if !problems.is_empty() {
             list_state.select(Some(0)); // Start by highlighting the first item
@@ -49,7 +49,7 @@ impl App {
         //OPTIM: Instead of cloning here, use a single allocation
         Self {
             should_quit: false,
-            selection_screen: SelectionScreen::new(problems.clone()),
+            selection_screen: SelectionScreen::new(Rc::clone(&problems)),
             problems,
             tab: Tab::default(),
             selected_problem: None,
@@ -67,7 +67,7 @@ impl App {
 
 /// The main entry point for the TUI
 pub async fn run_tui(
-    problems: Vec<ProblemSummary>,
+    problems: Rc<[ProblemSummary]>,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
     // 1. Setup Terminal (Enter raw mode and alternate screen)
     enable_raw_mode()?;

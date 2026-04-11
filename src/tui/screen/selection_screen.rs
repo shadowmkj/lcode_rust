@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use ratatui::{
@@ -19,8 +21,8 @@ pub enum InputMode {
 }
 
 pub struct SelectionScreen {
-    pub all_problems: Vec<ProblemSummary>,
-    pub filtered_problems: Vec<ProblemSummary>,
+    pub all_problems: Rc<[ProblemSummary]>,
+    pub filtered_problems: Vec<usize>,
     pub table_state: TableState,
     pub selected_problem: Option<String>,
     pub input: Input,
@@ -74,7 +76,8 @@ impl Screen for SelectionScreen {
             .map(|h| Cell::from(h).style(Style::default().fg(Color::Yellow)));
         let header = Row::new(header_cells).style(Style::default());
 
-        let rows = self.filtered_problems.iter().map(|p| {
+        let rows = self.filtered_problems.iter().map(|&p| {
+            let p = &self.all_problems[p];
             let diff_color = match p.difficulty {
                 1 => Color::Green,
                 2 => Color::Yellow,
@@ -82,11 +85,11 @@ impl Screen for SelectionScreen {
             };
 
             let id_cell = Cell::from(Span::styled(
-                format!("[{}]", p.id.to_string()),
+                format!("[{}]", p.id),
                 Style::default().fg(diff_color),
             ));
             let name_cell = Cell::from(Span::styled(
-                p.title.clone(),
+                p.title.as_str(),
                 Style::default().fg(diff_color),
             ));
             let acceptance_text = format!("{:.1}%", p.acceptance * 100.0);
@@ -171,7 +174,8 @@ impl Screen for SelectionScreen {
                     if let Some(i) = self.table_state.selected()
                         && !self.filtered_problems.is_empty()
                     {
-                        return Some(Action::Select(self.filtered_problems[i].slug.clone()));
+                        let index = self.filtered_problems[i];
+                        return Some(Action::Select(self.all_problems[index].slug.clone()));
                     }
                 }
                 KeyCode::Char(c) => {
@@ -190,7 +194,8 @@ impl Screen for SelectionScreen {
                     if let Some(i) = self.table_state.selected()
                         && !self.filtered_problems.is_empty()
                     {
-                        return Some(Action::Select(self.filtered_problems[i].slug.clone()));
+                        let index = self.filtered_problems[i];
+                        return Some(Action::Select(self.all_problems[index].slug.clone()));
                     }
                 }
                 KeyCode::Char('j') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -213,15 +218,15 @@ impl Screen for SelectionScreen {
 }
 
 impl SelectionScreen {
-    pub fn new(problems: Vec<ProblemSummary>) -> Self {
+    pub fn new(problems: Rc<[ProblemSummary]>) -> Self {
         let mut list_state = TableState::default();
         if !problems.is_empty() {
             list_state.select(Some(0)); // Start by highlighting the first item
         }
-        //OPTIM: Instead of cloning here, use a single allocation
+
         Self {
             selected_problem: None,
-            filtered_problems: problems.clone(),
+            filtered_problems: (0..problems.len()).collect(),
             all_problems: problems,
             table_state: list_state,
             input: Input::default(),
@@ -269,36 +274,32 @@ impl SelectionScreen {
     }
 
     pub fn filter_problems(&mut self) {
-        let mut filtered = vec![];
-        if let Some(difficulty) = self.difficulty_filter {
-            for problem in &self.all_problems {
-                if problem.difficulty == difficulty {
-                    filtered.push(problem.clone());
-                }
-            }
-            self.filtered_problems = filtered;
-        } else {
-            self.filtered_problems = self.all_problems.clone()
+        self.filtered_problems = match self.difficulty_filter {
+            Some(difficulty) => self
+                .all_problems
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p.difficulty == difficulty)
+                .map(|(i, _)| i)
+                .collect(),
+            None => (0..self.all_problems.len()).collect(),
         }
     }
 
     pub fn update_search(&mut self) {
         let query = self.input.value();
         if query.is_empty() {
-            //OPTIM: Instead of cloning here, use a single allocation
-            self.filtered_problems = self.all_problems.clone();
-            if let Some(diff) = self.difficulty_filter {
-                self.switch_difficulty(diff);
-            }
+            self.filtered_problems = (0..self.all_problems.len()).collect();
         } else {
             let matcher = SkimMatcherV2::default();
-            let mut matched = Vec::new();
-
-            for problem in &self.filtered_problems {
+            let mut matched: Vec<(i64, usize)> = Vec::new();
+            for (idx, problem) in self.all_problems.iter().enumerate() {
+                if !self.filtered_problems.contains(&idx) {
+                    continue;
+                }
                 let search_target = format!("{} {}", problem.title, problem.id);
                 if let Some(score) = matcher.fuzzy_match(&search_target, query) {
-                    //OPTIM: Instead of cloning here, use a single allocation
-                    matched.push((score, problem.clone()));
+                    matched.push((score, idx));
                 }
             }
 

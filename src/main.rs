@@ -2,6 +2,7 @@ use std::{
     fs::{self},
     io,
     process::Command,
+    rc::Rc,
 };
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -14,11 +15,11 @@ use dialoguer::{Select, theme::ColorfulTheme};
 use leetrs::{
     auth::{LeetCodeCredentials, auto_extract_flow, manual_auth_flow},
     client::LeetCodeClient,
-    models::{Identifier, Language},
+    models::{Identifier, Language, ProblemSummary},
     picker::Picker,
 };
 
-const VERSION: &str = "1.0.11";
+const VERSION: &str = "1.0.12";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
@@ -265,9 +266,11 @@ async fn open_tui() {
         }
     };
 
+    let problems: Rc<[ProblemSummary]> = Rc::from(problems);
+
     loop {
         //OPTIM: Make sure to optimize this without cloning
-        let selected_slug = match leetrs::tui::run_tui(problems.clone()).await {
+        let selected_slug = match leetrs::tui::run_tui(Rc::clone(&problems)).await {
             Ok(slug) => slug,
             Err(e) => {
                 eprintln!("Fatal error in TUI: {e}");
