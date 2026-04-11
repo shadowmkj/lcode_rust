@@ -39,11 +39,14 @@ impl Picker {
             }
         };
 
+        //TODO: If language is specified, must open that file
+        // else open the file with matching slug.
         if let Identifier::String(ident) = identifier {
             let snake_slug = ident.replace("-", "_");
             let code_filename = match language {
-                Language::Python => format!("{}.py", snake_slug),
+                Language::Python | Language::Pandas => format!("{}.py", snake_slug),
                 Language::Rust => format!("{}.rs", snake_slug),
+                Language::Mysql | Language::Postgres => format!("{}.sql", snake_slug),
             };
             let desc_filename = format!("{}.md", snake_slug);
             if Path::new(&code_filename).exists() && Path::new(&desc_filename).exists() {
@@ -66,22 +69,30 @@ impl Picker {
         let formatted_content = html2md::parse_html(&question.content);
         let md_content = format!("# {}\n\n{}", question.title, formatted_content);
 
+        let snippet = question
+            .code_snippets
+            .iter()
+            .find(|s| s.lang_slug == language.to_lang_slug());
+
+        let snippet = match snippet {
+            Some(s) => s,
+            None => question
+                .code_snippets
+                .first()
+                .expect("Leetcode problems must have atleast one snippet"),
+        };
+
         //  determine filenames (converting kebab-case to snake_case)
         let snake_slug = question.title_slug.replace("-", "_");
-        let code_filename = match language {
+        let code_filename = match Language::from(snippet.lang_slug.clone()) {
             Language::Rust => format!("{}.rs", snake_slug),
-            Language::Python => format!("{}.py", snake_slug),
+            Language::Python | Language::Pandas => format!("{}.py", snake_slug),
+            Language::Mysql | Language::Postgres => format!("{}.sql", snake_slug),
         };
         let desc_filename = format!("{}.md", snake_slug);
 
-        // write both files to disk
-        let snippet = question
-            .code_snippets
-            .into_iter()
-            .find(|s| s.lang_slug == language.to_lang_slug());
-
         let meta = match language {
-            Language::Python => {
+            Language::Python | Language::Pandas => {
                 format!(
                     "# id={} slug={} lang={}",
                     question.question_id,
@@ -95,25 +106,29 @@ impl Picker {
                 question.title_slug,
                 language.to_lang_slug()
             ),
+            Language::Mysql => format!(
+                "# id={} slug={} lang={}",
+                question.question_id,
+                question.title_slug,
+                language.to_lang_slug()
+            ),
+            Language::Postgres => format!(
+                "-- id={} slug={} lang={}",
+                question.question_id,
+                question.title_slug,
+                language.to_lang_slug()
+            ),
         };
 
-        if let Some(snippet) = snippet {
-            if let Err(e) = fs::write(&code_filename, format!("{}\n\n{}", meta, snippet.code)) {
-                eprintln!("❌ failed to write code file: {}", e);
-                return Err(EngineError::System);
-            }
-            if let Err(e) = fs::write(&desc_filename, md_content) {
-                eprintln!("❌ failed to write description file: {}", e);
-                return Err(EngineError::System);
-            }
-            println!("✅ files generated successfully.");
-        } else {
-            eprintln!(
-                "⚠️ no {} boilerplate found for this problem.",
-                language.to_lang_slug()
-            );
+        if let Err(e) = fs::write(&code_filename, format!("{}\n\n{}", meta, snippet.code)) {
+            eprintln!("❌ failed to write code file: {}", e);
             return Err(EngineError::System);
         }
+        if let Err(e) = fs::write(&desc_filename, md_content) {
+            eprintln!("❌ failed to write description file: {}", e);
+            return Err(EngineError::System);
+        }
+        println!("✅ files generated successfully.");
 
         Ok((code_filename, desc_filename))
     }

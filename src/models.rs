@@ -13,6 +13,9 @@ pub struct GraphQLQuery {
 pub enum Language {
     Python,
     Rust,
+    Pandas,
+    Mysql,
+    Postgres,
 }
 
 #[derive(Debug, Clone)]
@@ -21,11 +24,27 @@ pub enum Identifier {
     String(String),
 }
 
+impl From<String> for Language {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "python3" => Self::Python,
+            "rust" => Self::Rust,
+            "pythondata" => Self::Pandas,
+            "mysql" => Self::Mysql,
+            "postgresql" => Self::Postgres,
+            _ => Self::Python,
+        }
+    }
+}
+
 impl Language {
     pub fn to_lang_slug(&self) -> &'static str {
         match self {
             Language::Python => "python3",
             Language::Rust => "rust",
+            Language::Mysql => "mysql",
+            Language::Pandas => "pythondata",
+            Language::Postgres => "postgresql",
         }
     }
 

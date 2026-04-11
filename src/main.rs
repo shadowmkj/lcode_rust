@@ -19,7 +19,7 @@ use leetrs::{
     picker::Picker,
 };
 
-const VERSION: &str = "1.0.13";
+const VERSION: &str = "1.0.14";
 
 #[derive(Parser, Debug)]
 #[command(name = "leetrs")]
@@ -135,6 +135,7 @@ async fn main() -> anyhow::Result<()> {
             language,
             preview,
         }) => {
+            dbg!(language);
             let creds = match LeetCodeCredentials::load() {
                 Some(c) => c,
                 None => {
