@@ -31,11 +31,11 @@ impl Picker {
         identifier: &Identifier,
         language: &Option<Language>,
     ) -> Result<(String, String)> {
-        let language = match language {
-            Some(lang) => lang,
+        let mut language = match language {
+            Some(lang) => lang.clone(),
             None => {
                 println!("🔤 No language specified, defaulting to Python.");
-                &Language::Python
+                Language::Python
             }
         };
 
@@ -76,15 +76,19 @@ impl Picker {
 
         let snippet = match snippet {
             Some(s) => s,
-            None => question
-                .code_snippets
-                .first()
-                .expect("Leetcode problems must have atleast one snippet"),
+            None => {
+                let snippet = question
+                    .code_snippets
+                    .first()
+                    .expect("Leetcode problems must have atleast one snippet");
+                language = Language::from(snippet.lang_slug.clone());
+                snippet
+            }
         };
 
         //  determine filenames (converting kebab-case to snake_case)
         let snake_slug = question.title_slug.replace("-", "_");
-        let code_filename = match Language::from(snippet.lang_slug.clone()) {
+        let code_filename = match language {
             Language::Rust => format!("{}.rs", snake_slug),
             Language::Python | Language::Pandas => format!("{}.py", snake_slug),
             Language::Mysql | Language::Postgres => format!("{}.sql", snake_slug),

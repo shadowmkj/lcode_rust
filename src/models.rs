@@ -32,7 +32,7 @@ impl From<String> for Language {
             "pythondata" => Self::Pandas,
             "mysql" => Self::Mysql,
             "postgresql" => Self::Postgres,
-            _ => Self::Python,
+            _ => Self::Mysql,
         }
     }
 }
@@ -52,7 +52,8 @@ impl Language {
         match ext {
             "py" => Language::Python,
             "rs" => Language::Rust,
-            _ => Language::Python,
+            "sql" => Language::Mysql,
+            _ => Language::Mysql,
         }
     }
 }
