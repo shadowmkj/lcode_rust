@@ -160,7 +160,8 @@ impl Screen for SelectionScreen {
 
         let instructions = match self.input_mode {
             InputMode::Normal => (
-                "Press '/' to search, 'j'/'k' to scroll, 'Enter' to select, 'q' to quit.",
+                "Press '/' to search, 'j'/'k' to scroll, 'Enter' to select, 'o' to open in \
+                browser, 'q' to quit.",
                 Style::default().fg(Color::DarkGray),
             ),
             InputMode::Editing => (
@@ -202,6 +203,7 @@ impl Screen for SelectionScreen {
                 return Some(Action::Select(self.all_problems[index].slug.clone()));
             }
         }
+
         match self.input_mode {
             InputMode::Normal => match key_event.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Some(Action::Quit),
@@ -210,6 +212,18 @@ impl Screen for SelectionScreen {
                 KeyCode::Left | KeyCode::Char('h') => self.table_state.select_next_column(),
                 KeyCode::Right | KeyCode::Char('l') => self.table_state.select_previous_column(),
                 KeyCode::Char('/') => self.input_mode = InputMode::Editing,
+                KeyCode::Char('o') => {
+                    if let Some(i) = self.table_state.selected()
+                        && !self.filtered_problems.is_empty()
+                    {
+                        let index = self.filtered_problems[i];
+                        let selected = &self.all_problems[index];
+                        let selected = &selected.slug;
+                        let url = format!("https://leetcode.com/problems/{}", selected);
+                        self.input_mode = InputMode::Normal;
+                        return Some(Action::Open(url));
+                    }
+                }
                 KeyCode::Char('g') => {
                     if let Some(prev_key) = self.previous_key
                         && prev_key == KeyCode::Char('g')
