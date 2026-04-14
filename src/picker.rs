@@ -1,5 +1,5 @@
 use crate::error::{EngineError, Result};
-use crate::models::{Identifier, ProblemSummary};
+use crate::models::{Identifier, ProblemSummary, UserDetail};
 use crate::{client::LeetCodeClient, models::Language};
 use std::path::Path;
 use std::{fs, process};
@@ -24,6 +24,18 @@ impl Picker {
             process::exit(1);
         }
         data_dir.join("data.json").to_str().unwrap().to_string()
+    }
+
+    pub fn get_user_data_path() -> String {
+        let project_dirs = directories::ProjectDirs::from("com", "shadowmkj", "leetrs").unwrap();
+        let data_dir = project_dirs.data_dir();
+        if !data_dir.exists()
+            && let Err(e) = fs::create_dir_all(data_dir)
+        {
+            eprintln!("❌ Failed to create data directory: {}", e);
+            process::exit(1);
+        }
+        data_dir.join("user.json").to_str().unwrap().to_string()
     }
 
     pub async fn pick(
@@ -358,12 +370,58 @@ impl Picker {
         }
     }
 
+    pub async fn get_user_data(&self) -> Result<UserDetail> {
+        let data = match fs::read_to_string(Picker::get_user_data_path()) {
+            Ok(v) => v,
+            Err(_) => {
+                let user_detail = self
+                    .client
+                    .get_user_detail()
+                    .await
+                    .expect("Failed to retrieve user details");
+                let data = serde_json::to_string(&user_detail)
+                    .expect("Failed to serialize user_detail list");
+                fs::write(Picker::get_user_data_path(), &data)
+                    .expect("Unable to write user data json to file");
+                data
+            }
+        };
+        let user_detail: UserDetail = serde_json::from_str(&data).map_err(|e| {
+            eprintln!("Failed to parse user details: {}", e);
+            eprintln!("Try running `leetrs tui` again to refresh the cache.");
+            // Remove the data file since it's corrupted, so the next run will fetch fresh data
+            // from the API
+            if let Err(err) = fs::remove_file(Picker::get_user_data_path()) {
+                eprintln!("Failed to remove corrupted cache file: {}", err);
+            }
+            e
+        })?;
+        Ok(user_detail)
+    }
+
     pub async fn list_problems(&self) -> anyhow::Result<Vec<ProblemSummary>> {
+        // let user_detail = self
+        //     .client
+        //     .get_user_detail()
+        //     .await
+        //     .expect("Failed to retrieve user details");
+        // let data =
+        //     serde_json::to_string(&user_detail).expect("Failed to serialize user_detail list");
+        // fs::write(Picker::get_user_data_path(), data)
+        //     .expect("Unable to write user data json to file");
         let data = match fs::read_to_string(Picker::get_data_path()) {
             Ok(v) => {
                 // Fetch data in the background and update data.json for next time
                 let client_clone = self.client.clone();
                 tokio::spawn(async move {
+                    let user_detail = client_clone
+                        .get_user_detail()
+                        .await
+                        .expect("Failed to retrieve user details");
+                    let data = serde_json::to_string(&user_detail)
+                        .expect("Failed to serialize user_detail list");
+                    fs::write(Picker::get_user_data_path(), data)
+                        .expect("Unable to write user data json to file");
                     let mut problems = client_clone
                         .get_problem_list()
                         .await

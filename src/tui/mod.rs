@@ -8,6 +8,8 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use ratatui::layout::{Constraint, Layout};
+use ratatui::widgets::{Block, Clear, Paragraph};
 use ratatui::{
     Terminal,
     backend::{Backend, CrosstermBackend},
@@ -17,7 +19,7 @@ use screen::Screen;
 use std::process::Command;
 use std::{io, rc::Rc};
 
-use crate::models::{Identifier, Language, ProblemSummary};
+use crate::models::{Identifier, Language, ProblemSummary, UserDetail};
 
 #[derive(Default)]
 pub enum Tab {
@@ -34,15 +36,18 @@ pub struct App {
     pub selection_screen: SelectionScreen,
     pub help_screen: HelpScreen,
     pub selected_problem: Option<String>,
+    pub user_detail: Option<UserDetail>,
+    pub popup_message: Option<String>,
 }
 
 pub enum Action {
     Quit,
     Select(String),
+    ShowMessage(String),
 }
 
 impl App {
-    pub fn new(problems: Rc<[ProblemSummary]>) -> Self {
+    pub fn new(problems: Rc<[ProblemSummary]>, user_detail: Option<UserDetail>) -> Self {
         let mut list_state = ListState::default();
         if !problems.is_empty() {
             list_state.select(Some(0)); // Start by highlighting the first item
@@ -50,11 +55,13 @@ impl App {
 
         Self {
             should_quit: false,
-            selection_screen: SelectionScreen::new(Rc::clone(&problems)),
+            selection_screen: SelectionScreen::new(Rc::clone(&problems), user_detail.clone()),
             problems,
             tab: Tab::default(),
             selected_problem: None,
             help_screen: HelpScreen::new(),
+            user_detail,
+            popup_message: None,
         }
     }
 
@@ -67,8 +74,12 @@ impl App {
 }
 
 /// The main entry point for the TUI
-pub async fn run_tui(problems: Rc<[ProblemSummary]>, picker: Picker) -> anyhow::Result<()> {
-    let mut app = App::new(problems);
+pub async fn run_tui(
+    problems: Rc<[ProblemSummary]>,
+    picker: Picker,
+    user_detail: Option<UserDetail>,
+) -> anyhow::Result<()> {
+    let mut app = App::new(problems, user_detail);
     let _result = loop {
         enable_raw_mode().map_err(anyhow::Error::from)?;
         let mut stdout = io::stdout();
@@ -107,7 +118,24 @@ async fn run_app<B: Backend>(
             Tab::Help => &mut app.help_screen,
         };
 
-        let _ = terminal.draw(|f| screen.render(f));
+        let _ = terminal.draw(|f| {
+            screen.render(f);
+            if let Some(popup_message) = &app.popup_message {
+                let centered_area = f
+                    .area()
+                    .centered(Constraint::Percentage(60), Constraint::Percentage(20));
+                f.render_widget(Clear, centered_area);
+                let layout = Layout::default()
+                    .direction(ratatui::layout::Direction::Vertical)
+                    .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
+                    .split(centered_area);
+                let popup_block = Block::bordered().title("Popup");
+                let paragraph = Paragraph::new(popup_message.as_str()).block(popup_block);
+                f.render_widget(paragraph, layout[0]);
+                let hint = Paragraph::new("Press Enter or Esc to close");
+                f.render_widget(hint, layout[1]);
+            }
+        });
 
         // Poll for keystrokes (non-blocking)
         if event::poll(std::time::Duration::from_millis(50))? {
@@ -115,6 +143,15 @@ async fn run_app<B: Backend>(
             if let Event::Key(key) = event
                 && key.kind == KeyEventKind::Press
             {
+                if let Some(_) = &app.popup_message {
+                    match key.code {
+                        KeyCode::Enter | KeyCode::Esc => {
+                            app.popup_message = None;
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
                 match key.code {
                     KeyCode::Tab => app.switch(),
                     KeyCode::Char('?') => app.tab = Tab::Help,
@@ -127,6 +164,10 @@ async fn run_app<B: Backend>(
                                 Action::Select(problem) => {
                                     app.selected_problem = Some(problem);
                                     app.should_quit = true;
+                                }
+                                Action::ShowMessage(msg) => {
+                                    app.popup_message = Some(msg);
+                                    app.should_quit = false;
                                 }
                             }
                         }

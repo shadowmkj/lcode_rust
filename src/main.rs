@@ -262,5 +262,7 @@ async fn open_tui() {
 
     let problems: Rc<[ProblemSummary]> = Rc::from(problems);
 
-    let _ = leetrs::tui::run_tui(Rc::clone(&problems), picker).await;
+    let user_data = picker.get_user_data().await.ok();
+
+    let _ = leetrs::tui::run_tui(Rc::clone(&problems), picker, user_data).await;
 }

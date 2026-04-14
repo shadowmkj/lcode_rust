@@ -12,7 +12,7 @@ use ratatui::{
 use tui_input::{Input, backend::crossterm::EventHandler};
 
 use crate::{
-    models::ProblemSummary,
+    models::{ProblemSummary, UserDetail},
     tui::{Action, screen::Screen},
 };
 pub enum InputMode {
@@ -29,6 +29,7 @@ pub struct SelectionScreen {
     pub input_mode: InputMode,
     pub difficulty_filter: Option<u8>,
     pub previous_key: Option<KeyCode>,
+    pub user_detail: Option<UserDetail>,
 }
 
 impl Screen for SelectionScreen {
@@ -72,7 +73,7 @@ impl Screen for SelectionScreen {
             None => " Problems ",
         };
 
-        let header_cells = ["ID", "Name", "Acceptance", "Topics", "Done"]
+        let header_cells = ["ID", "Name", "Acceptance", "Topics", "Premium?", "Done"]
             .into_iter()
             .map(|h| Cell::from(h).style(Style::default().fg(Color::Yellow)));
         let header = Row::new(header_cells).style(Style::default());
@@ -110,6 +111,13 @@ impl Screen for SelectionScreen {
                 _ => Cell::from(done_text).style(Style::default().fg(Color::White)),
             };
 
+            let premium_text = match &p.is_paid {
+                true => "󰌾",
+                false => "",
+            };
+
+            let premium_cell = Cell::from(premium_text).style(Style::default().fg(Color::Red));
+
             let slice = p.topics.get(..1).unwrap_or(&p.topics);
             let topics_cell = Cell::from(slice.join("|"));
 
@@ -118,6 +126,7 @@ impl Screen for SelectionScreen {
                 name_cell,
                 acceptance_cell,
                 topics_cell,
+                premium_cell,
                 done_cell,
             ])
         });
@@ -126,9 +135,10 @@ impl Screen for SelectionScreen {
             rows,
             [
                 Constraint::Length(6),
-                Constraint::Percentage(55),
+                Constraint::Percentage(45),
                 Constraint::Min(10),
                 Constraint::Fill(10),
+                Constraint::Min(8),
                 Constraint::Length(6),
             ],
         )
@@ -175,6 +185,23 @@ impl Screen for SelectionScreen {
     }
 
     fn event_loop(&mut self, key_event: &KeyEvent) -> Option<Action> {
+        if let KeyCode::Enter = key_event.code {
+            if let Some(i) = self.table_state.selected()
+                && !self.filtered_problems.is_empty()
+            {
+                let index = self.filtered_problems[i];
+                let selected_problem = &self.all_problems[index];
+                if let Some(user) = &self.user_detail {
+                    if selected_problem.is_paid && !user.is_premium {
+                        return Some(Action::ShowMessage(
+                            "This problem is premium. please subscribe to access it.".to_string(),
+                        ));
+                    }
+                }
+
+                return Some(Action::Select(self.all_problems[index].slug.clone()));
+            }
+        }
         match self.input_mode {
             InputMode::Normal => match key_event.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Some(Action::Quit),
@@ -183,14 +210,6 @@ impl Screen for SelectionScreen {
                 KeyCode::Left | KeyCode::Char('h') => self.table_state.select_next_column(),
                 KeyCode::Right | KeyCode::Char('l') => self.table_state.select_previous_column(),
                 KeyCode::Char('/') => self.input_mode = InputMode::Editing,
-                KeyCode::Enter => {
-                    if let Some(i) = self.table_state.selected()
-                        && !self.filtered_problems.is_empty()
-                    {
-                        let index = self.filtered_problems[i];
-                        return Some(Action::Select(self.all_problems[index].slug.clone()));
-                    }
-                }
                 KeyCode::Char('g') => {
                     if let Some(prev_key) = self.previous_key
                         && prev_key == KeyCode::Char('g')
@@ -219,14 +238,6 @@ impl Screen for SelectionScreen {
                 KeyCode::Esc => {
                     self.input_mode = InputMode::Normal;
                 }
-                KeyCode::Enter => {
-                    if let Some(i) = self.table_state.selected()
-                        && !self.filtered_problems.is_empty()
-                    {
-                        let index = self.filtered_problems[i];
-                        return Some(Action::Select(self.all_problems[index].slug.clone()));
-                    }
-                }
                 KeyCode::Char('j') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                     self.next();
                 }
@@ -248,7 +259,7 @@ impl Screen for SelectionScreen {
 }
 
 impl SelectionScreen {
-    pub fn new(problems: Rc<[ProblemSummary]>) -> Self {
+    pub fn new(problems: Rc<[ProblemSummary]>, user_detail: Option<UserDetail>) -> Self {
         let mut list_state = TableState::default();
         if !problems.is_empty() {
             list_state.select(Some(0)); // Start by highlighting the first item
@@ -263,6 +274,7 @@ impl SelectionScreen {
             input_mode: InputMode::Normal,
             difficulty_filter: None,
             previous_key: None,
+            user_detail,
         }
     }
 

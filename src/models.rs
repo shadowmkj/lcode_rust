@@ -65,6 +65,15 @@ pub struct QuestionSnippet {
     pub code: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UserDetail {
+    pub username: String,
+    #[serde(rename = "isPremium")]
+    pub is_premium: bool,
+    #[serde(rename = "isVerified")]
+    pub is_verified: bool,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct Question {
     #[serde(rename = "questionId")]
@@ -89,6 +98,7 @@ pub struct ProblemSummary {
     pub status: Option<String>,
     pub submitted: u64,
     pub title: String,
+    pub is_paid: bool,
     pub topics: Vec<String>,
 }
 

@@ -2,7 +2,7 @@ use crate::auth::LeetCodeCredentials;
 use crate::error::{EngineError, Result};
 use crate::models::{
     GraphQLQuery, Question, QuestionTopics, SubmissionCheckResult, SubmitPayload, SubmitResponse,
-    TestPayload, TestSubmissionCheckResult, TestSubmitResponse,
+    TestPayload, TestSubmissionCheckResult, TestSubmitResponse, UserDetail,
 };
 use reqwest::Client;
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue, USER_AGENT};
@@ -303,6 +303,33 @@ impl LeetCodeClient {
         }
     }
 
+    pub async fn get_user_detail(&self) -> Result<UserDetail> {
+        let query_string = r#"
+                query {
+                  userStatus {
+                    username
+                    isPremium
+                    isVerified
+                  }
+                }
+        "#;
+
+        let query = GraphQLQuery {
+            query: query_string.to_string(),
+            variables: None,
+            operation_name: None,
+        };
+
+        #[derive(serde::Deserialize)]
+        struct UserDetailWrapper {
+            #[serde(rename = "userStatus")]
+            user_status: UserDetail,
+        }
+
+        let response: UserDetailWrapper = self.execute_graphql(query).await?;
+        Ok(response.user_status)
+    }
+
     pub async fn get_topics_question_list(&self) -> Result<Vec<crate::models::QuestionTopics>> {
         let query_string = r#"
         query questionTopicTags {
@@ -374,9 +401,12 @@ impl LeetCodeClient {
         {
             let mut problems = Vec::with_capacity(pairs.len());
             for pair in pairs {
-                if let (Some(stat), Some(difficulty), Some(status)) =
-                    (pair.get("stat"), pair.get("difficulty"), pair.get("status"))
-                {
+                if let (Some(stat), Some(difficulty), Some(status), Some(paid_only)) = (
+                    pair.get("stat"),
+                    pair.get("difficulty"),
+                    pair.get("status"),
+                    pair.get("paid_only"),
+                ) {
                     let id = stat
                         .get("frontend_question_id")
                         .and_then(|v| v.as_u64())
@@ -412,6 +442,7 @@ impl LeetCodeClient {
                         submitted,
                         acceptance,
                         status,
+                        is_paid: paid_only.as_bool().unwrap_or(false),
                         topics: Vec::new(),
                     });
                 }
