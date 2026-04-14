@@ -1,6 +1,6 @@
 [package]
 name = "leetrs"
-version = "1.0.16"
+version = "1.0.18"
 edition = "2024"
 description = "A command-line tool to interact with LeetCode."
 license = "MIT"
@@ -16,6 +16,7 @@ dialoguer = "0.12.0"
 directories = "6.0.0"
 fuzzy-matcher = "0.3.7"
 html2md = "0.2.15"
+open = "5.3.3"
 ratatui = "0.30.0"
 reqwest = { version = "0.13.2", features = ["json", "cookies"] }
 rookie = "0.5.6"

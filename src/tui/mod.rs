@@ -44,6 +44,7 @@ pub enum Action {
     Quit,
     Select(String),
     ShowMessage(String),
+    Open(String),
 }
 
 impl App {
@@ -168,6 +169,9 @@ async fn run_app<B: Backend>(
                                 Action::ShowMessage(msg) => {
                                     app.popup_message = Some(msg);
                                     app.should_quit = false;
+                                }
+                                Action::Open(url) => {
+                                    let _ = open::that(url);
                                 }
                             }
                         }
