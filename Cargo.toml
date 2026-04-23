@@ -30,5 +30,8 @@ tui-input = "0.15.1"
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
-lto = "thin"
+codegen-units = 1
+lto = true
+opt-level = "s" 
+strip = true 
 
