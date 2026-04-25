@@ -37,7 +37,7 @@ enum Commands {
     /// Authenticate with LeetCode
     Auth,
     /// Launch the TUI (Placeholder for now)
-    Tui,
+    Tui { language: Option<Language> },
     /// Check auth status
     Status,
     /// Pick a problem
@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Some(Commands::Tui) => open_tui().await,
+        Some(Commands::Tui {language}) => open_tui(language).await,
         Some(Commands::Status) => {
             match LeetCodeCredentials::load() {
                 Some(creds) => {
@@ -205,7 +205,7 @@ async fn main() -> anyhow::Result<()> {
                 _ => todo!(),
             }
         }
-        None => open_tui().await,
+        None => open_tui(&None).await,
     };
 
     Ok(())
@@ -256,7 +256,7 @@ pub async fn pick_and_open(
 }
 
 /// Fetches the full problem list and user data, then launches the interactive TUI.
-async fn open_tui() {
+async fn open_tui(language: &Option<Language>) {
     let creds = leetrs::auth::LeetCodeCredentials::load().expect("Please run `leetrs auth` first.");
     let client = leetrs::client::LeetCodeClient::new(creds).expect("Failed to init client");
 
@@ -274,5 +274,5 @@ async fn open_tui() {
 
     let user_data = picker.get_user_data().await.ok();
 
-    let _ = leetrs::tui::run_tui(Rc::clone(&problems), picker, user_data).await;
+    let _ = leetrs::tui::run_tui(Rc::clone(&problems), picker, user_data, language).await;
 }
