@@ -98,6 +98,7 @@ pub async fn run_tui(
     problems: Rc<[ProblemSummary]>,
     picker: Picker,
     user_detail: Option<UserDetail>,
+    language: &Option<Language>,
 ) -> anyhow::Result<()> {
     let mut app = App::new(problems, user_detail);
     let _result = loop {
@@ -115,7 +116,7 @@ pub async fn run_tui(
 
         match result {
             Ok(Some(problem)) => {
-                pick_and_open_nvim(&picker, &Identifier::String(problem), &None).await;
+                pick_and_open_nvim(&picker, &Identifier::String(problem), language).await;
                 app.selection_screen.input_mode = InputMode::Normal;
                 app.should_quit = false;
                 app.selected_problem = None;
